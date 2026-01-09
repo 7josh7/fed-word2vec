@@ -8,6 +8,11 @@ data/
 model/
 !model/.gitkeep
 
+# Old src files (now in src/fed_word2vec/)
+src/__init__.py
+src/downloader.py
+src/text_cleaner.py
+
 # Python
 __pycache__/
 *.py[cod]

@@ -131,24 +131,88 @@ Future extensions could include:
 
 ```
 .
+├── src/fed_word2vec/   # Python package (pip installable)
+│   ├── __init__.py
+│   ├── cli.py          # Command-line interface
+│   ├── config.py       # Configuration management
+│   ├── downloader.py   # Fed transcript scraping & downloading
+│   └── text_cleaner.py # HTML parsing & text filtering
 ├── notebooks/          # Orchestration & demo notebooks
 │   ├── *.zpln          # Zeppelin notebooks (Spark/Scala Word2Vec training)
 │   └── *.ipynb         # Jupyter notebooks (Python data pipeline)
-├── src/                # Core Python logic (reusable modules)
-│   ├── downloader.py   # Fed transcript scraping & downloading
-│   └── text_cleaner.py # HTML parsing & text filtering
-├── data/               # Raw downloads and processed text/parquet
-├── model/              # Saved Word2Vec models
+├── data/               # Raw downloads and processed text (gitignored)
+├── model/              # Saved Word2Vec models (gitignored)
+├── config.yaml         # Pipeline configuration
+├── pyproject.toml      # Python package definition
 ├── report/             # Final project report (PDF)
 └── README.md
 ```
 
-> **Note:** Core data pipeline logic lives in `src/`; notebooks orchestrate the pipeline and demonstrate results. Spark/Scala code for Word2Vec training remains in Zeppelin notebooks.
+> **Note:** `data/` and `model/` directories are excluded from version control via `.gitignore`. Run the download/clean pipeline to populate them.
+
+---
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/7josh7/fed-word2vec.git
+cd fed-word2vec
+
+# Create virtual environment (recommended)
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/Mac
+
+# Install in editable mode
+pip install -e .
+```
+
+---
+
+## CLI Usage
+
+The package provides a command-line interface for downloading and cleaning Fed documents:
+
+```bash
+# Show help
+fed-word2vec --help
+
+# Initialize a config file (optional, one is already included)
+fed-word2vec init
+
+# Download all Fed documents (FOMC + speeches)
+fed-word2vec download
+
+# Download only FOMC documents
+fed-word2vec download fomc
+
+# Clean HTML files to text
+fed-word2vec clean
+
+# Clean with removed-lines log for debugging
+fed-word2vec clean --save-removed
+```
+
+### Quick Smoke Test
+
+To verify the installation works without downloading the full corpus:
+
+```bash
+# This will attempt to connect and parse the Fed website
+fed-word2vec download fomc
+# Then cancel (Ctrl+C) after a few files download
+```
 
 ---
 
 ## Requirements
 
+### For Data Pipeline (Python)
+* Python 3.10+
+* Dependencies installed via `pip install -e .`
+
+### For Model Training (Spark)
 * Apache Spark
 * Apache Zeppelin
 * Scala (Spark MLlib)
