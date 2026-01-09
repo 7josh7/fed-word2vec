@@ -1,0 +1,31 @@
+# Fed Word2Vec Configuration
+# Copy this file to config.yaml and customize as needed
+
+paths:
+  data_root: data
+  downloads_dir: data/fed_downloads
+  text_dir: data/fed_text
+  model_dir: model
+
+download:
+  user_agent: "FedResearchDownloader/1.0 (contact: research@example.com)"
+  delay: 0.4
+  timeout: 30
+  start_year: 1994
+  end_year: null  # null = current year
+  target_speakers:
+    - Powell
+    - Yellen
+    - Bernanke
+
+cleaning:
+  removal_guard: 0.4  # Max removal ratio before fallback (0.0-1.0)
+  min_guard: 0.30
+  max_guard: 0.60
+
+word2vec:
+  vector_size: 200
+  window: 10
+  min_count: 5
+  workers: 4
+  epochs: 10

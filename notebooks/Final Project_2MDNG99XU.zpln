@@ -1,0 +1,2298 @@
+{
+  "paragraphs": [
+    {
+      "text": "%md\r\n\r\n---\r\n# Fed Word2Vec Pipeline\r\n\r\nThis section trains Word2Vec models on Federal Reserve text data (FOMC statements, minutes, and speeches).\r\n\r\n## Pipeline Overview:\r\n1. **Build Unified Dataset** - Load Fed text with metadata (doc_type, date, speaker)\r\n2. **Fed-Specific Tokenization** - Custom phrase detection for Fed terminology\r\n3. **Train Multiple Variants** - Grid search over hyperparameters\r\n4. **Evaluation** - Nearest neighbors + policy analogies\r\n5. **Failure Analysis** - Document cases that didn\u0027t work\r\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:04.884",
+      "progress": 0,
+      "config": {
+        "tableHide": true,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": false,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch1\u003eFed Word2Vec Pipeline\u003c/h1\u003e\n\u003cp\u003eThis section trains Word2Vec models on Federal Reserve text data (FOMC statements, minutes, and speeches).\u003c/p\u003e\n\u003ch2\u003ePipeline Overview:\u003c/h2\u003e\n\u003col\u003e\n\u003cli\u003e\u003cstrong\u003eBuild Unified Dataset\u003c/strong\u003e - Load Fed text with metadata (doc_type, date, speaker)\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eFed-Specific Tokenization\u003c/strong\u003e - Custom phrase detection for Fed terminology\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eTrain Multiple Variants\u003c/strong\u003e - Grid search over hyperparameters\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eEvaluation\u003c/strong\u003e - Nearest neighbors + policy analogies\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eFailure Analysis\u003c/strong\u003e - Document cases that didn\u0026rsquo;t work\u003c/li\u003e\n\u003c/ol\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766099767039_1719752194",
+      "id": "paragraph_1766099767039_1719752194",
+      "dateCreated": "2025-12-18 18:16:07.041",
+      "dateStarted": "2025-12-19 13:22:04.900",
+      "dateFinished": "2025-12-19 13:22:07.134",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 1: Configuration and Paths\nimport java.io.File\nimport java.nio.file.{Files, Paths}\nimport scala.io.Source\nimport scala.collection.mutable.ArrayBuffer\n\n\n// Paths - adjust for your environment (WSL format)\nval FED_TEXT_DIR \u003d \"./data/fed_text\"\nval FOMC_DIR \u003d s\"$FED_TEXT_DIR/fomc\"\nval SPEECHES_DIR \u003d s\"$FED_TEXT_DIR/speeches\"\nval OUTPUT_DIR \u003d \"./data/fed_embeddings\"\nval MODELS_DIR \u003d s\"./models\"\n\n// Create output directories\nnew File(OUTPUT_DIR).mkdirs()\nnew File(MODELS_DIR).mkdirs()\n\nprintln(s\"FED_TEXT_DIR: $FED_TEXT_DIR\")\nprintln(s\"OUTPUT_DIR: $OUTPUT_DIR\")\nprintln(s\"FOMC exists: ${new File(FOMC_DIR).exists()}\")\nprintln(s\"Speeches exists: ${new File(SPEECHES_DIR).exists()}\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:07.206",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "FED_TEXT_DIR: ./data/fed_text\nOUTPUT_DIR: ./data/fed_embeddings\nFOMC exists: true\nSpeeches exists: true\nimport java.io.File\nimport java.nio.file.{Files, Paths}\nimport scala.io.Source\nimport scala.collection.mutable.ArrayBuffer\n\u001b[1m\u001b[34mFED_TEXT_DIR\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./data/fed_text\n\u001b[1m\u001b[34mFOMC_DIR\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./data/fed_text/fomc\n\u001b[1m\u001b[34mSPEECHES_DIR\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./data/fed_text/speeches\n\u001b[1m\u001b[34mOUTPUT_DIR\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./data/fed_embeddings\n\u001b[1m\u001b[34mMODELS_DIR\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./models\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766099799613_2074039480",
+      "id": "paragraph_1766099799613_2074039480",
+      "dateCreated": "2025-12-18 18:16:39.613",
+      "dateStarted": "2025-12-19 13:22:07.216",
+      "dateFinished": "2025-12-19 13:22:19.063",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## 1. Build Unified Dataset with Metadata\n\nEach row will have:\n- `doc_type`: statement | minutes | speech | press_conference\n- `date`: YYYY-MM-DD (parsed from filename)\n- `speaker`: Powell | Yellen | Bernanke | FOMC\n- `text`: raw paragraph/sentence\n- `meeting_id`: YYYY-MM (for FOMC docs)\n- `source_file`: original filename\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:19.077",
+      "progress": 0,
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003e1. Build Unified Dataset with Metadata\u003c/h2\u003e\n\u003cp\u003eEach row will have:\u003c/p\u003e\n\u003cul\u003e\n\u003cli\u003e\u003ccode\u003edoc_type\u003c/code\u003e: statement | minutes | speech | press_conference\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003edate\u003c/code\u003e: YYYY-MM-DD (parsed from filename)\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003espeaker\u003c/code\u003e: Powell | Yellen | Bernanke | FOMC\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003etext\u003c/code\u003e: raw paragraph/sentence\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003emeeting_id\u003c/code\u003e: YYYY-MM (for FOMC docs)\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003esource_file\u003c/code\u003e: original filename\u003c/li\u003e\n\u003c/ul\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766099821126_262972123",
+      "id": "paragraph_1766099821126_262972123",
+      "dateCreated": "2025-12-18 18:17:01.126",
+      "dateStarted": "2025-12-19 13:22:19.083",
+      "dateFinished": "2025-12-19 13:22:19.096",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 2: Metadata extraction functions\n\ndef extractDateFromFilename(filename: String): Option[String] \u003d {\n  // Pattern: YYYYMMDD or YYYY-MM-DD or YYYY_MM_DD\n  val patterns \u003d Seq(\n    \"(\\\\d{4})(\\\\d{2})(\\\\d{2})\".r,\n    \"(\\\\d{4})-(\\\\d{2})-(\\\\d{2})\".r,\n    \"(\\\\d{4})_(\\\\d{2})_(\\\\d{2})\".r\n  )\n  patterns.flatMap { p \u003d\u003e\n    p.findFirstMatchIn(filename).map(m \u003d\u003e s\"${m.group(1)}-${m.group(2)}-${m.group(3)}\")\n  }.headOption\n}\n\ndef extractDocType(filename: String, parentDir: String): String \u003d {\n  val fnameLower \u003d filename.toLowerCase\n  if (fnameLower.contains(\"statement\") || fnameLower.contains(\"monetary\")) \"statement\"\n  else if (fnameLower.contains(\"minute\")) \"minutes\"\n  else if (fnameLower.contains(\"press\") || fnameLower.contains(\"conference\")) \"press_conference\"\n  else if (parentDir.toLowerCase.contains(\"speech\")) \"speech\"\n  else if (parentDir.toLowerCase.contains(\"fomc\")) \"minutes\"\n  else \"unknown\"\n}\n\ndef extractSpeaker(filename: String, docType: String): String \u003d {\n  val fnameLower \u003d filename.toLowerCase\n  val speakers \u003d Map(\n    \"powell\" -\u003e \"Powell\", \"yellen\" -\u003e \"Yellen\", \"bernanke\" -\u003e \"Bernanke\",\n    \"greenspan\" -\u003e \"Greenspan\", \"volcker\" -\u003e \"Volcker\", \"clarida\" -\u003e \"Clarida\",\n    \"brainard\" -\u003e \"Brainard\", \"waller\" -\u003e \"Waller\", \"bowman\" -\u003e \"Bowman\",\n    \"barr\" -\u003e \"Barr\", \"cook\" -\u003e \"Cook\", \"jefferson\" -\u003e \"Jefferson\",\n    \"quarles\" -\u003e \"Quarles\", \"williams\" -\u003e \"Williams\", \"bullard\" -\u003e \"Bullard\"\n  )\n  speakers.find { case (key, _) \u003d\u003e fnameLower.contains(key) }\n    .map(_._2)\n    .getOrElse(if (docType \u003d\u003d \"statement\" || docType \u003d\u003d \"minutes\") \"FOMC\" else \"Unknown\")\n}\n\ndef extractMeetingId(filename: String, docType: String): Option[String] \u003d {\n  if (!Seq(\"statement\", \"minutes\", \"press_conference\").contains(docType)) None\n  else \"(\\\\d{4})(\\\\d{2})\".r.findFirstMatchIn(filename).map(m \u003d\u003e s\"${m.group(1)}-${m.group(2)}\")\n}\n\nprintln(\"Metadata extraction functions defined.\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:19.185",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Metadata extraction functions defined.\n\u001b[1m\u001b[34mextractDateFromFilename\u001b[0m: \u001b[1m\u001b[32m(filename: String)Option[String]\u001b[0m\n\u001b[1m\u001b[34mextractDocType\u001b[0m: \u001b[1m\u001b[32m(filename: String, parentDir: String)String\u001b[0m\n\u001b[1m\u001b[34mextractSpeaker\u001b[0m: \u001b[1m\u001b[32m(filename: String, docType: String)String\u001b[0m\n\u001b[1m\u001b[34mextractMeetingId\u001b[0m: \u001b[1m\u001b[32m(filename: String, docType: String)Option[String]\u001b[0m\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100547092_1429607997",
+      "id": "paragraph_1766100547092_1429607997",
+      "dateCreated": "2025-12-18 18:29:07.092",
+      "dateStarted": "2025-12-19 13:22:19.189",
+      "dateFinished": "2025-12-19 13:22:19.831",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 3: Build corpus DataFrame from text files\n\ncase class FedRecord(\n  doc_type: String,\n  date: String,\n  speaker: String,\n  meeting_id: String,\n  source_file: String,\n  text: String\n)\n\ndef recursiveListFiles(dir: File): Array[File] \u003d {\n  val files \u003d dir.listFiles()\n  if (files \u003d\u003d null) return Array.empty\n  \n  files.flatMap { f \u003d\u003e\n    if (f.isDirectory) recursiveListFiles(f)\n    else Array(f)\n  }\n}\n\ndef readAllFedFiles(): Seq[FedRecord] \u003d {\n  val records \u003d ArrayBuffer[FedRecord]()\n  \n  // Process FOMC files - recursively find all .txt files in subdirectories\n  val fomcDir \u003d new File(FOMC_DIR)\n  if (fomcDir.exists()) {\n    recursiveListFiles(fomcDir).filter(_.getName.endsWith(\".txt\")).foreach { file \u003d\u003e\n      try {\n        val text \u003d Source.fromFile(file, \"UTF-8\").mkString\n        val fname \u003d file.getName\n        val docType \u003d extractDocType(fname, \"fomc\")\n        val date \u003d extractDateFromFilename(fname).getOrElse(\"unknown\")\n        val speaker \u003d extractSpeaker(fname, docType)\n        val meetingId \u003d extractMeetingId(fname, docType).getOrElse(\"\")\n        \n        // Split into paragraphs (min 50 chars)\n        text.split(\"\\n\\n\").map(_.trim).filter(_.length \u003e 50).foreach { para \u003d\u003e\n          records +\u003d FedRecord(docType, date, speaker, meetingId, fname, para)\n        }\n      } catch {\n        case e: Exception \u003d\u003e println(s\"Error reading ${file.getName}: ${e.getMessage}\")\n      }\n    }\n  }\n  \n  // Process Speech files - recursively find all .txt files in subdirectories\n  val speechesDir \u003d new File(SPEECHES_DIR)\n  if (speechesDir.exists()) {\n    recursiveListFiles(speechesDir).filter(_.getName.endsWith(\".txt\")).foreach { file \u003d\u003e\n      try {\n        val text \u003d Source.fromFile(file, \"UTF-8\").mkString\n        val fname \u003d file.getName\n        val docType \u003d \"speech\"\n        val date \u003d extractDateFromFilename(fname).getOrElse(\"unknown\")\n        val speaker \u003d extractSpeaker(fname, docType)\n        \n        // Split into paragraphs\n        text.split(\"\\n\\n\").map(_.trim).filter(_.length \u003e 50).foreach { para \u003d\u003e\n          records +\u003d FedRecord(docType, date, speaker, \"\", fname, para)\n        }\n      } catch {\n        case e: Exception \u003d\u003e println(s\"Error reading ${file.getName}: ${e.getMessage}\")\n      }\n    }\n  }\n  \n  records.toSeq\n}\n\n// Build the corpus\nprintln(\"Reading Fed text files...\")\nval fedRecords \u003d readAllFedFiles()\nprintln(s\"Total records: ${fedRecords.size}\")\n\n// Create Spark DataFrame\nimport spark.implicits._\nval fedCorpusDf \u003d fedRecords.toDF()\nfedCorpusDf.cache()\nfedCorpusDf.createOrReplaceTempView(\"fed_corpus\")\n\nprintln(s\"\\nCorpus DataFrame created with ${fedCorpusDf.count()} rows\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:19.891",
+      "progress": 4,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Reading Fed text files...\nTotal records: 350\n\nCorpus DataFrame created with 350 rows\ndefined class FedRecord\n\u001b[1m\u001b[34mrecursiveListFiles\u001b[0m: \u001b[1m\u001b[32m(dir: java.io.File)Array[java.io.File]\u001b[0m\n\u001b[1m\u001b[34mreadAllFedFiles\u001b[0m: \u001b[1m\u001b[32m()Seq[FedRecord]\u001b[0m\n\u001b[1m\u001b[34mfedRecords\u001b[0m: \u001b[1m\u001b[32mSeq[FedRecord]\u001b[0m \u003d\nArrayBuffer(FedRecord(statement,unknown,FOMC,,unknown-historical-statements-on-longer-run-goals-and-monetary-policy-strategy-2019-2020.txt,Historical Statements on Longer-Run Goals and Monetary Policy Strategy), FedRecord(statement,2023-02-01,FOMC,2023-02,unknown-monetary20230201b.txt,February 01, 2023\nFederal Open Market Committee reaffirms its \"Statement on Longer-Run Goals and Monetary Policy Strategy\"\nFor release at 2:00 p.m. EST\nShare\nThe Federal Open Market Committee, at its annual organization meeting this week, unanimously reaffirmed its \"Statement on Longer-...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d0"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d1"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d2"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100570198_932544388",
+      "id": "paragraph_1766100570198_932544388",
+      "dateCreated": "2025-12-18 18:29:30.198",
+      "dateStarted": "2025-12-19 13:22:19.898",
+      "dateFinished": "2025-12-19 13:22:25.079",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%sql\n\n-- Preview the Fed corpus\nSELECT doc_type, date, speaker, meeting_id, source_file, SUBSTRING(text, 1, 100) as text_preview\nFROM fed_corpus\nLIMIT 20",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:25.114",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TABLE",
+            "data": "doc_type\tdate\tspeaker\tmeeting_id\tsource_file\ttext_preview\nstatement\tunknown\tFOMC\t\tunknown-historical-statements-on-longer-run-goals-and-monetary-policy-strategy-2019-2020.txt\tHistorical Statements on Longer-Run Goals and Monetary Policy Strategy\nstatement\t2023-02-01\tFOMC\t2023-02\tunknown-monetary20230201b.txt\tFebruary 01, 2023 Federal Open Market Committee reaffirms its \"Statement on Longer-Run Goals and Mo\nstatement\t2022-01-26\tFOMC\t2022-01\tunknown-monetary20220126b.txt\tJanuary 26, 2022 Federal Open Market Committee reaffirms its \"Statement on Longer-Run Goals and Mon\nstatement\tunknown\tFOMC\t\tunknown-fed-financial-statements.txt\tThe Board of Governors and the Federal Reserve Banks annually prepare and release audited financial \nstatement\t2021-01-27\tFOMC\t2021-01\tunknown-monetary20210127b.txt\tJanuary 27, 2021 Federal Open Market Committee reaffirms its \"Statement on Longer-Run Goals and Mon\nstatement\t2025-08-22\tFOMC\t2025-08\tunknown-monetary20250822a.txt\tAugust 22, 2025 Federal Open Market Committee announces approval of updates to its Statement on Lon\nstatement\t2024-01-31\tFOMC\t2024-01\tunknown-monetary20240131b.txt\tJanuary 31, 2024 Federal Open Market Committee reaffirms its \"Statement on Longer-Run Goals and Mon\nstatement\t2020-08-27\tFOMC\t2020-08\tunknown-monetary20200827a.txt\tAugust 27, 2020 Federal Open Market Committee announces approval of updates to its Statement on Lon\nminutes\tunknown\tFOMC\t\tunknown-fomc_historical.txt\tTranscripts and other historical materials FOMC Search Search all FOMC materials FOMC Document Fi\nstatement\t2025-12-10\tFOMC\t2025-12\tunknown-monetary20251210a.txt\tDecember 10, 2025 Federal Reserve issues FOMC statement For release at 2:00 p.m. EST Share Avail\nminutes\t2025-05-07\tFOMC\t2025-05\tunknown-fomcpresconf20250507.txt\tMay 6-7, 2025 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Right/Left\nminutes\t2024-09-18\tFOMC\t2024-09\tunknown-fomcpresconf20240918.txt\tSeptember 17-18, 2024 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Ri\nminutes\t2021-01-27\tFOMC\t2021-01\tunknown-fomcpresconf20210127.txt\tJanuary 26-27, 2021 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Righ\nminutes\tunknown\tFOMC\t\tunknown-fomccalendars.txt\tMeeting calendars, statements, and minutes (2020-2027) FOMC Search Search all FOMC materials FOMC\nminutes\t2020-07-29\tFOMC\t2020-07\tunknown-fomcpresconf20200729.txt\tJuly 28-29, 2020 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Right/L\nminutes\t2023-12-13\tFOMC\t2023-12\tunknown-fomcpresconf20231213.txt\tDecember 12-13, 2023 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Rig\nminutes\t2021-12-15\tFOMC\t2021-12\tunknown-fomcpresconf20211215.txt\tDecember 14-15, 2021 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Rig\nminutes\t2025-06-18\tFOMC\t2025-06\tunknown-fomcpresconf20250618.txt\tJune 17-18, 2025 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Right/L\nminutes\t2021-06-16\tFOMC\t2021-06\tunknown-fomcpresconf20210616.txt\tJune 15-16, 2021 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Right/L\nminutes\t2020-01-29\tFOMC\t2020-01\tunknown-fomcpresconf20200129.txt\tJanuary 28-29, 2020 FOMC Meeting Accessible Keys for Video [Space Bar] toggles play/pause; [Righ\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d3"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d4"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100591822_1276897742",
+      "id": "paragraph_1766100591822_1276897742",
+      "dateCreated": "2025-12-18 18:29:51.823",
+      "dateStarted": "2025-12-19 13:22:25.120",
+      "dateFinished": "2025-12-19 13:22:25.540",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%sql\n\n-- Corpus statistics by doc_type\nSELECT \n    doc_type,\n    COUNT(*) as count,\n    COUNT(DISTINCT source_file) as unique_files,\n    COUNT(DISTINCT speaker) as unique_speakers\nFROM fed_corpus\nGROUP BY doc_type\nORDER BY count DESC",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:25.622",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TABLE",
+            "data": "doc_type\tcount\tunique_files\tunique_speakers\nspeech\t242\t242\t3\nminutes\t99\t98\t1\nstatement\t9\t9\t1\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d5"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d6"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d7"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100599063_244825301",
+      "id": "paragraph_1766100599063_244825301",
+      "dateCreated": "2025-12-18 18:29:59.063",
+      "dateStarted": "2025-12-19 13:22:25.625",
+      "dateFinished": "2025-12-19 13:22:26.877",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## 2. Fed-Specific Tokenization\n\nKey transformations:\n- **Manual phrase mappings**: federal_reserve, federal_funds_rate, quantitative_easing, etc.\n- **Percentage normalization**: 2% → 2_percent, 25 basis points → 25_basis_points\n- **Acronym preservation**: FOMC, PCE, CPI, IOER, IORB, RRP, SOMA, etc.",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:26.930",
+      "progress": 0,
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003e2. Fed-Specific Tokenization\u003c/h2\u003e\n\u003cp\u003eKey transformations:\u003c/p\u003e\n\u003cul\u003e\n\u003cli\u003e\u003cstrong\u003eManual phrase mappings\u003c/strong\u003e: federal_reserve, federal_funds_rate, quantitative_easing, etc.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003ePercentage normalization\u003c/strong\u003e: 2% → 2_percent, 25 basis points → 25_basis_points\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eAcronym preservation\u003c/strong\u003e: FOMC, PCE, CPI, IOER, IORB, RRP, SOMA, etc.\u003c/li\u003e\n\u003c/ul\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100609462_355399695",
+      "id": "paragraph_1766100609462_355399695",
+      "dateCreated": "2025-12-18 18:30:09.462",
+      "dateStarted": "2025-12-19 13:22:26.934",
+      "dateFinished": "2025-12-19 13:22:26.942",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 4: Fed-specific tokenization\n\n// Manual phrase mappings for high-priority Fed expressions\nval MANUAL_PHRASES \u003d Map(\n  \"federal reserve\" -\u003e \"federal_reserve\",\n  \"federal open market committee\" -\u003e \"fomc\",\n  \"federal funds\" -\u003e \"federal_funds\",\n  \"federal funds rate\" -\u003e \"federal_funds_rate\",\n  \"target range\" -\u003e \"target_range\",\n  \"basis points\" -\u003e \"basis_points\",\n  \"interest rate\" -\u003e \"interest_rate\",\n  \"interest rates\" -\u003e \"interest_rates\",\n  \"monetary policy\" -\u003e \"monetary_policy\",\n  \"balance sheet\" -\u003e \"balance_sheet\",\n  \"asset purchases\" -\u003e \"asset_purchases\",\n  \"quantitative easing\" -\u003e \"quantitative_easing\",\n  \"quantitative tightening\" -\u003e \"quantitative_tightening\",\n  \"forward guidance\" -\u003e \"forward_guidance\",\n  \"labor market\" -\u003e \"labor_market\",\n  \"financial conditions\" -\u003e \"financial_conditions\",\n  \"price stability\" -\u003e \"price_stability\",\n  \"maximum employment\" -\u003e \"maximum_employment\",\n  \"dual mandate\" -\u003e \"dual_mandate\",\n  \"open market operations\" -\u003e \"open_market_operations\",\n  \"discount rate\" -\u003e \"discount_rate\",\n  \"reserve requirements\" -\u003e \"reserve_requirements\",\n  \"treasury securities\" -\u003e \"treasury_securities\",\n  \"mortgage backed securities\" -\u003e \"mortgage_backed_securities\",\n  \"agency mbs\" -\u003e \"agency_mbs\",\n  \"overnight reverse repurchase\" -\u003e \"on_rrp\",\n  \"reverse repo\" -\u003e \"reverse_repo\",\n  \"repo operations\" -\u003e \"repo_operations\",\n  \"standing repo facility\" -\u003e \"srf\",\n  \"interest on reserve balances\" -\u003e \"iorb\",\n  \"interest on excess reserves\" -\u003e \"ioer\",\n  \"system open market account\" -\u003e \"soma\",\n  \"term auction facility\" -\u003e \"taf\",\n  \"primary dealer credit facility\" -\u003e \"pdcf\",\n  \"term asset backed securities\" -\u003e \"talf\",\n  \"main street lending\" -\u003e \"mslp\",\n  \"commercial paper\" -\u003e \"commercial_paper\",\n  \"money market\" -\u003e \"money_market\",\n  \"economic activity\" -\u003e \"economic_activity\",\n  \"economic outlook\" -\u003e \"economic_outlook\",\n  \"inflation expectations\" -\u003e \"inflation_expectations\",\n  \"core inflation\" -\u003e \"core_inflation\",\n  \"headline inflation\" -\u003e \"headline_inflation\",\n  \"personal consumption expenditures\" -\u003e \"pce\",\n  \"consumer price index\" -\u003e \"cpi\",\n  \"gross domestic product\" -\u003e \"gdp\",\n  \"unemployment rate\" -\u003e \"unemployment_rate\",\n  \"labor force participation\" -\u003e \"labor_force_participation\",\n  \"job gains\" -\u003e \"job_gains\",\n  \"wage growth\" -\u003e \"wage_growth\"\n)\n\n// Fed acronyms to preserve\nval FED_ACRONYMS \u003d Set(\n  \"fomc\", \"pce\", \"cpi\", \"gdp\", \"fed\", \"qe\", \"qt\", \"mbs\", \"tsy\",\n  \"ioer\", \"iorb\", \"rrp\", \"soma\", \"taf\", \"pdcf\", \"talf\", \"mslp\", \"srf\",\n  \"fima\", \"tips\", \"libor\", \"sofr\", \"effr\", \"obfr\", \"tomo\", \"pomo\",\n  \"lsap\", \"sep\", \"dot\", \"dots\", \"ust\", \"bps\", \"yoy\", \"qoq\", \"mom\"\n)\n\ndef normalizePercentages(text: String): String \u003d {\n  // X% -\u003e X_percent\n  var result \u003d text.replaceAll(\"(\\\\d+(?:\\\\.\\\\d+)?)\\\\s*%\", \"$1_percent\")\n  // X basis points -\u003e X_basis_points\n  result \u003d result.replaceAll(\"(\\\\d+)\\\\s*basis\\\\s*points?\", \"$1_basis_points\")\n  // X bps -\u003e X_basis_points\n  result \u003d result.replaceAll(\"(\\\\d+)\\\\s*bps\", \"$1_basis_points\")\n  result\n}\n\ndef applyManualPhrases(text: String): String \u003d {\n  var result \u003d text.toLowerCase\n  // Sort by length descending to apply longer phrases first\n  MANUAL_PHRASES.toSeq.sortBy(-_._1.length).foreach { case (phrase, replacement) \u003d\u003e\n    result \u003d result.replace(phrase, replacement)\n  }\n  result\n}\n\ndef tokenizeFedText(text: String): Array[String] \u003d {\n  if (text \u003d\u003d null || text.isEmpty) return Array.empty[String]\n  \n  // Normalize percentages first\n  var processed \u003d normalizePercentages(text)\n  \n  // Apply manual phrases\n  processed \u003d applyManualPhrases(processed)\n  \n  // Basic tokenization: keep underscores for phrases\n  processed \u003d processed.replaceAll(\"[^\\\\w\\\\s_]\", \" \")\n  val tokens \u003d processed.toLowerCase.split(\"\\\\s+\")\n  \n  // Filter: keep alphabetic, acronyms, and phrase tokens\n  tokens.filter { tok \u003d\u003e\n    tok.contains(\"_\") ||  // phrase token\n    FED_ACRONYMS.contains(tok) ||  // acronym\n    (tok.matches(\"[a-z]+\") \u0026\u0026 tok.length \u003e 1) ||  // alphabetic\n    tok.matches(\"\\\\d+_(percent|basis_points)\")  // percentage\n  }\n}\n\n// Register UDF\nval tokenizeFedUdf \u003d udf(tokenizeFedText _)\n\nprintln(s\"Tokenization functions defined.\")\nprintln(s\"Manual phrases: ${MANUAL_PHRASES.size}\")\nprintln(s\"Fed acronyms: ${FED_ACRONYMS.size}\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 14:41:14.679",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Tokenization functions defined.\nManual phrases: 50\nFed acronyms: 35\n\u001b[1m\u001b[34mMANUAL_PHRASES\u001b[0m: \u001b[1m\u001b[32mscala.collection.immutable.Map[String,String]\u001b[0m \u003d Map(basis points -\u003e basis_points, quantitative easing -\u003e quantitative_easing, labor market -\u003e labor_market, open market operations -\u003e open_market_operations, dual mandate -\u003e dual_mandate, monetary policy -\u003e monetary_policy, balance sheet -\u003e balance_sheet, consumer price index -\u003e cpi, term asset backed securities -\u003e talf, overnight reverse repurchase -\u003e on_rrp, core inflation -\u003e core_inflation, personal consumption expenditures -\u003e pce, commercial paper -\u003e commercial_paper, maximum employment -\u003e maximum_employment, mortgage backed securities -\u003e mortgage_backed_securities, interest rates -\u003e interest_rates, federal funds -\u003e federal_funds, financial conditions -\u003e financial_conditions, federal open marke...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100618964_1318400383",
+      "id": "paragraph_1766100618964_1318400383",
+      "dateCreated": "2025-12-18 18:30:18.964",
+      "dateStarted": "2025-12-19 13:22:27.039",
+      "dateFinished": "2025-12-19 13:22:27.582",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 5: Apply tokenization to corpus\n\nval fedTokenizedDf \u003d fedCorpusDf.withColumn(\"tokens\", tokenizeFedUdf($\"text\"))\nfedTokenizedDf.cache()\n\n// Preview\nprintln(\"Sample tokenized rows:\")\nfedTokenizedDf.select(\"doc_type\", \"tokens\").show(5, truncate \u003d 80)\n\n// Token statistics\nval tokenStats \u003d fedTokenizedDf.selectExpr(\"size(tokens) as token_count\")\n  .agg(\n    sum(\"token_count\").alias(\"total_tokens\"),\n    avg(\"token_count\").alias(\"avg_tokens_per_doc\")\n  ).collect()(0)\n\nprintln(s\"\\nTotal tokens: ${tokenStats.getLong(0)}\")\nprintln(s\"Avg tokens per doc: ${tokenStats.getDouble(1)}\")\n\nfedTokenizedDf.createOrReplaceTempView(\"fed_tokenized\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:27.639",
+      "progress": 55,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Sample tokenized rows:\n+---------+--------------------------------------------------------------------------------+\n| doc_type|                                                                          tokens|\n+---------+--------------------------------------------------------------------------------+\n|statement|[historical, statements, on, longer, run, goals, and, monetary_policy, strategy]|\n|statement|[february, fomc, reaffirms, its, statement, on, longer, run, goals, and, mone...|\n|statement|[january, fomc, reaffirms, its, statement, on, longer, run, goals, and, monet...|\n|statement|[the, board, of, governors, and, the, federal_reserve, banks, annually, prepa...|\n|statement|[january, fomc, reaffirms, its, statement, on, longer, run, goals, and, monet...|\n+---------+--------------------------------------------------------------------------------+\nonly showing top 5 rows\n\n\nTotal tokens: 1002043\nAvg tokens per doc: 2862.98\n\u001b[1m\u001b[34mfedTokenizedDf\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m \u003d [doc_type: string, date: string ... 5 more fields]\n\u001b[1m\u001b[34mtokenStats\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.Row\u001b[0m \u003d [1002043,2862.98]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d8"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d9"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d10"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d11"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100630667_29865554",
+      "id": "paragraph_1766100630667_29865554",
+      "dateCreated": "2025-12-18 18:30:30.667",
+      "dateStarted": "2025-12-19 13:22:27.643",
+      "dateFinished": "2025-12-19 13:22:29.025",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%sql\n\n-- Show most common tokens\nSELECT token, COUNT(*) as count\nFROM (\n    SELECT explode(tokens) as token\n    FROM fed_tokenized\n)\nGROUP BY token\nORDER BY count DESC\nLIMIT 30",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:29.052",
+      "progress": 20,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TABLE",
+            "data": "token\tcount\nthe\t71793\nof\t37866\nand\t33230\nto\t29656\nin\t26822\nthat\t15508\nfor\t11304\non\t8529\nas\t7867\nis\t6290\nwith\t5663\ninflation\t5649\nby\t5594\nat\t5591\nbe\t5115\nhave\t4360\nfinancial\t4320\nthis\t4315\nare\t4112\nparticipants\t4024\nfederal_reserve\t3847\nwas\t3719\npercent\t3569\nfrom\t3452\ncommittee\t3300\nover\t3274\nwe\t3162\nwould\t3131\nit\t3082\npolicy\t3041\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d12"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d13"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100639283_595242229",
+      "id": "paragraph_1766100639283_595242229",
+      "dateCreated": "2025-12-18 18:30:39.283",
+      "dateStarted": "2025-12-19 13:22:29.055",
+      "dateFinished": "2025-12-19 13:22:29.888",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%sql\n\n-- Show detected phrases (tokens with underscores)\nSELECT token, COUNT(*) as count\nFROM (\n    SELECT explode(tokens) as token\n    FROM fed_tokenized\n)\nWHERE token LIKE \u0027%\\_%\u0027\nGROUP BY token\nORDER BY count DESC\nLIMIT 30",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:29.960",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TABLE",
+            "data": "token\tcount\nfederal_reserve\t3847\nmonetary_policy\t2886\nfederal_funds_rate\t1438\nlabor_market\t1433\ninterest_rates\t910\neconomic_activity\t897\nunemployment_rate\t854\ninflation_expectations\t716\ntarget_range\t669\neconomic_outlook\t636\nmaximum_employment\t572\nbalance_sheet\t567\ntreasury_securities\t524\nfinancial_conditions\t513\nasset_purchases\t428\nprice_stability\t427\ninterest_rate\t324\nlabor_force_participation\t256\nmoney_market\t238\nforward_guidance\t233\nagency_mbs\t231\nopen_market_operations\t193\ncore_inflation\t178\njob_gains\t177\nwage_growth\t160\ndual_mandate\t153\nbalance_sheets\t132\non_rrp\t91\n25_basis_points\t77\nlabor_markets\t77\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d14"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d15"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100647153_952694675",
+      "id": "paragraph_1766100647153_952694675",
+      "dateCreated": "2025-12-18 18:30:47.153",
+      "dateStarted": "2025-12-19 13:22:29.964",
+      "dateFinished": "2025-12-19 13:22:30.458",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## 3. Train Multiple Word2Vec Variants\n\nGrid search over:\n- Vector size: 100, 200, 300\n- Window: 5, 10\n- Min count: 5, 10\n- Max iterations: 15",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:30.471",
+      "progress": 0,
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003e3. Train Multiple Word2Vec Variants\u003c/h2\u003e\n\u003cp\u003eGrid search over:\u003c/p\u003e\n\u003cul\u003e\n\u003cli\u003eVector size: 100, 200, 300\u003c/li\u003e\n\u003cli\u003eWindow: 5, 10\u003c/li\u003e\n\u003cli\u003eMin count: 5, 10\u003c/li\u003e\n\u003cli\u003eMax iterations: 15\u003c/li\u003e\n\u003c/ul\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100655415_1512113965",
+      "id": "paragraph_1766100655415_1512113965",
+      "dateCreated": "2025-12-18 18:30:55.415",
+      "dateStarted": "2025-12-19 13:22:30.476",
+      "dateFinished": "2025-12-19 13:22:30.481",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 6: Word2Vec hyperparameter configurations\n\nval FED_ANCHOR_WORDS \u003d Seq(\n  \"inflation\", \"unemployment\", \"labor_market\", \"financial_conditions\",\n  \"tapering\", \"asset_purchases\", \"balance_sheet\", \"forward_guidance\",\n  \"tightening\", \"easing\", \"monetary_policy\",\n  \"quantitative_easing\", \"federal_funds_rate\", \"interest_rates\"\n)\n\ncase class FedModelConfig(name: String, vectorSize: Int, windowSize: Int, minCount: Int)\n\n// val FED_CONFIGS \u003d Seq(\n//   FedModelConfig(\"v100_w5_mc5\", 100, 5, 5),\n//   FedModelConfig(\"v100_w10_mc5\", 100, 10, 5),\n//   FedModelConfig(\"v200_w5_mc5\", 200, 5, 5),\n//   FedModelConfig(\"v200_w10_mc5\", 200, 10, 5),\n//   FedModelConfig(\"v200_w10_mc10\", 200, 10, 10),\n//   FedModelConfig(\"v300_w10_mc5\", 300, 10, 5)\n// )\nval FED_CONFIGS \u003d Seq(\n  // ---- Baselines (your current ones) ----\n  FedModelConfig(\"v100_w5_mc5\",   100,  5,  5),\n  FedModelConfig(\"v100_w10_mc5\",  100, 10,  5),\n  FedModelConfig(\"v200_w5_mc5\",   200,  5,  5),\n  FedModelConfig(\"v200_w10_mc5\",  200, 10,  5),\n  FedModelConfig(\"v200_w10_mc10\", 200, 10, 10),\n  FedModelConfig(\"v300_w10_mc5\",  300, 10,  5),\n\n  // ---- High-ROI extensions ----\n  // Wider context windows help policy phrases and longer dependencies\n  FedModelConfig(\"v100_w15_mc5\",  100, 15,  5),\n  FedModelConfig(\"v200_w15_mc5\",  200, 15,  5),\n  FedModelConfig(\"v300_w15_mc5\",  300, 15,  5),\n\n  // Lower minCount can improve rare-but-important acronyms/tools (risk: more noise)\n  FedModelConfig(\"v100_w10_mc3\",  100, 10,  3),\n  FedModelConfig(\"v200_w10_mc3\",  200, 10,  3),\n  FedModelConfig(\"v300_w10_mc3\",  300, 10,  3),\n\n  // Combine both “wide window + lower minCount” (often best for domain corpora)\n  FedModelConfig(\"v200_w15_mc3\",  200, 15,  3)\n)\nprintln(s\"Will train ${FED_CONFIGS.size} model variants\")\nprintln(s\"Anchor words for evaluation: ${FED_ANCHOR_WORDS.size}\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:22:30.577",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Will train 13 model variants\nAnchor words for evaluation: 14\n\u001b[1m\u001b[34mFED_ANCHOR_WORDS\u001b[0m: \u001b[1m\u001b[32mSeq[String]\u001b[0m \u003d List(inflation, unemployment, labor_market, financial_conditions, tapering, asset_purchases, balance_sheet, forward_guidance, tightening, easing, monetary_policy, quantitative_easing, federal_funds_rate, interest_rates)\ndefined class FedModelConfig\n\u001b[1m\u001b[34mFED_CONFIGS\u001b[0m: \u001b[1m\u001b[32mSeq[FedModelConfig]\u001b[0m \u003d List(FedModelConfig(v100_w5_mc5,100,5,5), FedModelConfig(v100_w10_mc5,100,10,5), FedModelConfig(v200_w5_mc5,200,5,5), FedModelConfig(v200_w10_mc5,200,10,5), FedModelConfig(v200_w10_mc10,200,10,10), FedModelConfig(v300_w10_mc5,300,10,5), FedModelConfig(v100_w15_mc5,100,15,5), FedModelConfig(v200_w15_mc5,200,15,5), FedModelConfig(v300_w15_mc5,300,15,5), FedModelConfig(v100_w10_mc3,100,10,3), FedModelConfig(v200_w10_mc3,200,10,3...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100663581_1345007287",
+      "id": "paragraph_1766100663581_1345007287",
+      "dateCreated": "2025-12-18 18:31:03.581",
+      "dateStarted": "2025-12-19 13:22:30.580",
+      "dateFinished": "2025-12-19 13:22:30.770",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 7: Train all model variants\nimport org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}\nimport org.apache.spark.ml.linalg.{DenseVector, Vectors}\nimport spark.implicits._\n\ncase class FedTrainingResult(\n  name: String, vectorSize: Int, windowSize: Int, minCount: Int,\n  vocabSize: Long, anchorCoverage: Double, analogyScore: Double, timeMs: Long\n)\n\nval ANALOGY_TOPK \u003d 3 // set to 3 for stability\n\nval fedTrainingResults \u003d ArrayBuffer[FedTrainingResult]()\nvar fedModels \u003d Map[String, Word2VecModel]()\nvar fedBestModel: Word2VecModel \u003d null\nvar fedBestScore \u003d -1.0\nvar fedBestConfig \u003d \"\"\n\n// Helper: elementwise ops\ndef vectorPlus(a: Array[Double], b: Array[Double]): Array[Double] \u003d a.zip(b).map{ case (x, y) \u003d\u003e x + y }\n\ndef vectorMinus(a: Array[Double], b: Array[Double]): Array[Double] \u003d a.zip(b).map{ case (x, y) \u003d\u003e x - y }\n\n// Compute top-N average similarity for an analogy using a driver-side vocab map (only required words)\n// Returns 0.0 if any words are missing from vocabulary or if no valid synonyms after filtering\n// Filters out all query words (positive ++ negative) from the synonym list to avoid inflated scores\ndef analogyTopNScore(model: Word2VecModel, vocabMap: Map[String, Array[Double]], positive: Seq[String], negative: Seq[String], topN: Int, vectorSize: Int): Double \u003d {\n  var result \u003d Array.fill(vectorSize)(0.0)\n\n  val allWords \u003d positive ++ negative\n  val missing \u003d allWords.filterNot(vocabMap.contains)\n  if (missing.nonEmpty) return 0.0\n\n  positive.foreach { w \u003d\u003e result \u003d vectorPlus(result, vocabMap(w)) }\n  negative.foreach { w \u003d\u003e result \u003d vectorMinus(result, vocabMap(w)) }\n\n  val queryWords \u003d allWords.toSet\n  val syn \u003d model.findSynonyms(Vectors.dense(result), topN + queryWords.size).collect()\n  val filtered \u003d syn.filter(r \u003d\u003e !queryWords.contains(r.getString(0))).take(topN)\n  if (filtered.isEmpty) 0.0 else filtered.map(_.getDouble(1)).sum / filtered.length\n}\n\n// Required analogies for evaluation\n// 1) quantitative_easing − asset_purchases + balance_sheet\n// 2) tapering − asset_purchases + balance_sheet\n// 3) tightening − hikes + cuts\nval REQUIRED_ANALOGIES \u003d Seq(\n  (\"QE\", Seq(\"quantitative_easing\", \"balance_sheet\"), Seq(\"asset_purchases\")),\n  (\"Tapering\", Seq(\"tapering\", \"balance_sheet\"), Seq(\"asset_purchases\")),\n  (\"Stance\", Seq(\"tightening\", \"cuts\"), Seq(\"hikes\"))\n)\n\n// Precompute the union of words used by all required analogies\nval REQUIRED_WORDS: Set[String] \u003d (REQUIRED_ANALOGIES.flatMap { case (_, pos, neg) \u003d\u003e pos ++ neg }).toSet\n\nfor (cfg \u003c- FED_CONFIGS) {\n  println(s\"\\n${\"\u003d\" * 60}\")\n  println(s\"Training: ${cfg.name}\")\n  println(s\"  vectorSize\u003d${cfg.vectorSize}, window\u003d${cfg.windowSize}, minCount\u003d${cfg.minCount}\")\n  \n  val startTime \u003d System.currentTimeMillis()\n  \n  val w2v \u003d new Word2Vec()\n    .setInputCol(\"tokens\")\n    .setOutputCol(\"vectors\")\n    .setVectorSize(cfg.vectorSize)\n    .setWindowSize(cfg.windowSize)\n    .setMinCount(cfg.minCount)\n    .setMaxIter(15)\n    .setSeed(42L)\n    .setNumPartitions(8)  // Parallel training across CPU cores\n    .setStepSize(0.025)   // Learning rate (default is fine)\n\n  val model \u003d w2v.fit(fedTokenizedDf)\n  \n  val elapsed \u003d System.currentTimeMillis() - startTime\n  \n  // Vocabulary stats (no redundant caching)\n  val vocabSize \u003d model.getVectors.count()\n  val vectorSize \u003d model.getVectorSize\n\n  // Build driver-side map ONLY for the required analogy words to avoid OOM\n  val requiredVectorsDf \u003d model.getVectors.filter($\"word\".isin(REQUIRED_WORDS.toSeq: _*))\n  val vocabMap: Map[String, Array[Double]] \u003d requiredVectorsDf.select($\"word\", $\"vector\").collect()\n    .map(r \u003d\u003e r.getString(0) -\u003e r.getAs[DenseVector](1).toArray).toMap\n  val vocabSet \u003d model.getVectors.select(\"word\").collect().map(_.getString(0)).toSet\n  \n  // Anchor coverage (kept for reference)\n  val covered \u003d FED_ANCHOR_WORDS.count(vocabSet.contains)\n  val coverageScore \u003d covered.toDouble / FED_ANCHOR_WORDS.size\n  \n  // Analogy metric: average of top-K scores across the 3 required analogies\n  val analogyScores \u003d REQUIRED_ANALOGIES.map { case (label, pos, neg) \u003d\u003e\n    val s \u003d analogyTopNScore(model, vocabMap, pos, neg, ANALOGY_TOPK, vectorSize)\n    println(f\"  Analogy \u0027$label\u0027 top-$ANALOGY_TOPK score: ${s}%.4f\")\n    s\n  }\n  val analogyAvg \u003d if (analogyScores.nonEmpty) analogyScores.sum / analogyScores.size else 0.0\n  \n  println(s\"  Vocab size: $vocabSize\")\n  println(s\"  Anchor coverage: $covered/${FED_ANCHOR_WORDS.size} (${(coverageScore * 100).toInt}%)\")\n  println(s\"  Analogy score (avg top-$ANALOGY_TOPK): ${\"%.4f\".format(analogyAvg)}\")\n  println(s\"  Training time: ${elapsed}ms\")\n  \n  // Save model\n  val modelPath \u003d s\"$MODELS_DIR/${cfg.name}\"\n  model.save(modelPath)\n  \n  // Track results\n  fedModels +\u003d (cfg.name -\u003e model)\n  fedTrainingResults +\u003d FedTrainingResult(cfg.name, cfg.vectorSize, cfg.windowSize, cfg.minCount, vocabSize, coverageScore, analogyAvg, elapsed)\n  \n  // Select best by analogy score\n  if (analogyAvg \u003e fedBestScore) {\n    fedBestScore \u003d analogyAvg\n    fedBestModel \u003d model\n    fedBestConfig \u003d cfg.name\n  }\n}\n\nprintln(s\"\\n${\"\u003d\" * 60}\")\nprintln(f\"BEST MODEL (by analogy score): $fedBestConfig (score\u003d${fedBestScore}%.4f)\")\nprintln(\"\u003d\" * 60)\n\n// Create results DataFrame\nval fedResultsDf \u003d fedTrainingResults.toDF()\nfedResultsDf.createOrReplaceTempView(\"fed_training_results\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:30:12.895",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v100_w5_mc5\n  vectorSize\u003d100, window\u003d5, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.4111\n  Analogy \u0027Tapering\u0027 top-3 score: 0.5165\n  Analogy \u0027Stance\u0027 top-3 score: 0.3766\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.4347\n  Training time: 41594ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v100_w10_mc5\n  vectorSize\u003d100, window\u003d10, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.4365\n  Analogy \u0027Tapering\u0027 top-3 score: 0.5949\n  Analogy \u0027Stance\u0027 top-3 score: 0.3992\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.4768\n  Training time: 72515ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v200_w5_mc5\n  vectorSize\u003d200, window\u003d5, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.3074\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4546\n  Analogy \u0027Stance\u0027 top-3 score: 0.3035\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3552\n  Training time: 65110ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v200_w10_mc5\n  vectorSize\u003d200, window\u003d10, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.4197\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4411\n  Analogy \u0027Stance\u0027 top-3 score: 0.2843\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3817\n  Training time: 113191ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v200_w10_mc10\n  vectorSize\u003d200, window\u003d10, minCount\u003d10\n  Analogy \u0027QE\u0027 top-3 score: 0.3319\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4630\n  Analogy \u0027Stance\u0027 top-3 score: 0.3045\n  Vocab size: 5028\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3664\n  Training time: 112140ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v300_w10_mc5\n  vectorSize\u003d300, window\u003d10, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.3727\n  Analogy \u0027Tapering\u0027 top-3 score: 0.3977\n  Analogy \u0027Stance\u0027 top-3 score: 0.2339\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3347\n  Training time: 154145ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v100_w15_mc5\n  vectorSize\u003d100, window\u003d15, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.5423\n  Analogy \u0027Tapering\u0027 top-3 score: 0.6110\n  Analogy \u0027Stance\u0027 top-3 score: 0.3765\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.5100\n  Training time: 101638ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v200_w15_mc5\n  vectorSize\u003d200, window\u003d15, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.4851\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4398\n  Analogy \u0027Stance\u0027 top-3 score: 0.2617\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3955\n  Training time: 163509ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v300_w15_mc5\n  vectorSize\u003d300, window\u003d15, minCount\u003d5\n  Analogy \u0027QE\u0027 top-3 score: 0.4090\n  Analogy \u0027Tapering\u0027 top-3 score: 0.3814\n  Analogy \u0027Stance\u0027 top-3 score: 0.2405\n  Vocab size: 7016\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3437\n  Training time: 224358ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v100_w10_mc3\n  vectorSize\u003d100, window\u003d10, minCount\u003d3\n  Analogy \u0027QE\u0027 top-3 score: 0.4375\n  Analogy \u0027Tapering\u0027 top-3 score: 0.6080\n  Analogy \u0027Stance\u0027 top-3 score: 0.3851\n  Vocab size: 9009\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.4769\n  Training time: 71917ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v200_w10_mc3\n  vectorSize\u003d200, window\u003d10, minCount\u003d3\n  Analogy \u0027QE\u0027 top-3 score: 0.3578\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4840\n  Analogy \u0027Stance\u0027 top-3 score: 0.3060\n  Vocab size: 9009\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3826\n  Training time: 116343ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v300_w10_mc3\n  vectorSize\u003d300, window\u003d10, minCount\u003d3\n  Analogy \u0027QE\u0027 top-3 score: 0.3404\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4177\n  Analogy \u0027Stance\u0027 top-3 score: 0.2556\n  Vocab size: 9009\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3379\n  Training time: 158806ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nTraining: v200_w15_mc3\n  vectorSize\u003d200, window\u003d15, minCount\u003d3\n  Analogy \u0027QE\u0027 top-3 score: 0.4245\n  Analogy \u0027Tapering\u0027 top-3 score: 0.4383\n  Analogy \u0027Stance\u0027 top-3 score: 0.3096\n  Vocab size: 9009\n  Anchor coverage: 14/14 (100%)\n  Analogy score (avg top-3): 0.3908\n  Training time: 166184ms\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nBEST MODEL (by analogy score): v100_w15_mc5 (score\u003d0.5100)\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nimport org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}\nimport org.apache.spark.ml.linalg.{DenseVector, Vectors}\nimport spark.implicits._\ndefined class FedTrainingResult\n\u001b[1m\u001b[34mANALOGY_TOPK\u001b[0m: \u001b[1m\u001b[32mInt\u001b[0m \u003d 3\n\u001b[1m\u001b[34mfedTrainingResults\u001b[0m: \u001b[1m\u001b[32mscala.collection.mutable.ArrayBuffer[FedTrainingResult]\u001b[0m \u003d ArrayBuffer(FedTrainingResult(v100_w5_mc5,100,5,5,7016,1.0,0.43470452560318845,41594), FedTrainingResult(v100_w10_mc5,100,10,5,7016,1.0,0.47684403591685826,72515), FedTrainingResult(v200_w5_mc5,200,5,5,7016,1.0,0.3551765978336334,65110), FedTrainingResult(v200_w10_mc5,200,10,5,7016,1.0,0.3816742632124159,113191), FedTrainingResult(v200_w10_mc10,200,10,10,5028,1.0,0.3664399219883813,112140), FedTrainingResult(v300_w10_mc5,300,10,5,7016,1.0,0.3347456604242325,154145),...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d52"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d53"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d54"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d55"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d56"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d57"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d58"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d59"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d60"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d61"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d62"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d63"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d64"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d65"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d66"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d67"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d68"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d69"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d70"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d71"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d72"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d73"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d74"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d75"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d76"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d77"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d78"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d79"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d80"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d81"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d82"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d83"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d84"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d85"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d86"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d87"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d88"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d89"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d90"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d91"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d92"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d93"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d94"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d95"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d96"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d97"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d98"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d99"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d100"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d101"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d102"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d103"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d104"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d105"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d106"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d107"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d108"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d109"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d110"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d111"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d112"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d113"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d114"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d115"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d116"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d117"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d118"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d119"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d120"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d121"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d122"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d123"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d124"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d125"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d126"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d127"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d128"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d129"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d130"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d131"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d132"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d133"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d134"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d135"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d136"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d137"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d138"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d139"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d140"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d141"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d142"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d143"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d144"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d145"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d146"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d147"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d148"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d149"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d150"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d151"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d152"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d153"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d154"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d155"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d156"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d157"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d158"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d159"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d160"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d161"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d162"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d163"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d164"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d165"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d166"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d167"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d168"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d169"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d170"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d171"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d172"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d173"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d174"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d175"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d176"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d177"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d178"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d179"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d180"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d181"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d182"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d183"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d184"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d185"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d186"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d187"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d188"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d189"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d190"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d191"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d192"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d193"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d194"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d195"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d196"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d197"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d198"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d199"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d200"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d201"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d202"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d203"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d204"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d205"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d206"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d207"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d208"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d209"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d210"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d211"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d212"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d213"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d214"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d215"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d216"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d217"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d218"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d219"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d220"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d221"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d222"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d223"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d224"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d225"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d226"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d227"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d228"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d229"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d230"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d231"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d232"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d233"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d234"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d235"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d236"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d237"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d238"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d239"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d240"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d241"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d242"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d243"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d244"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d245"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d246"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d247"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d248"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d249"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d250"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d251"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d252"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d253"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d254"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d255"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d256"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d257"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d258"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d259"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d260"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d261"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d262"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d263"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d264"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d265"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d266"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d267"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d268"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d269"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d270"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d271"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d272"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d273"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d274"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d275"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d276"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d277"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d278"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d279"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d280"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d281"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d282"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d283"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d284"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d285"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d286"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d287"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d288"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d289"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d290"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d291"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d292"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d293"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d294"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d295"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d296"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d297"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d298"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d299"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d300"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d301"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d302"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d303"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d304"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d305"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d306"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d307"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d308"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d309"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d310"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d311"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d312"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d313"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d314"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d315"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d316"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d317"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d318"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d319"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d320"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d321"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d322"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d323"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d324"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100672758_95230156",
+      "id": "paragraph_1766100672758_95230156",
+      "dateCreated": "2025-12-18 18:31:12.758",
+      "dateStarted": "2025-12-19 13:30:12.897",
+      "dateFinished": "2025-12-19 13:56:21.990",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%sql\n\n-- Training results summary\nSELECT * \nFROM fed_training_results\nORDER BY analogyScore DESC, vocabSize DESC\n-- ORDER BY anchorCoverage DESC, vocabSize DESC",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:22.057",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TABLE",
+            "data": "name\tvectorSize\twindowSize\tminCount\tvocabSize\tanchorCoverage\tanalogyScore\ttimeMs\nv100_w15_mc5\t100\t15\t5\t7016\t1.0\t0.5099523299270206\t101638\nv100_w10_mc3\t100\t10\t3\t9009\t1.0\t0.47687422566943694\t71917\nv100_w10_mc5\t100\t10\t5\t7016\t1.0\t0.47684403591685826\t72515\nv100_w5_mc5\t100\t5\t5\t7016\t1.0\t0.43470452560318845\t41594\nv200_w15_mc5\t200\t15\t5\t7016\t1.0\t0.3955308861202664\t163509\nv200_w15_mc3\t200\t15\t3\t9009\t1.0\t0.3908184766769409\t166184\nv200_w10_mc3\t200\t10\t3\t9009\t1.0\t0.3826199968655904\t116343\nv200_w10_mc5\t200\t10\t5\t7016\t1.0\t0.3816742632124159\t113191\nv200_w10_mc10\t200\t10\t10\t5028\t1.0\t0.3664399219883813\t112140\nv200_w5_mc5\t200\t5\t5\t7016\t1.0\t0.3551765978336334\t65110\nv300_w15_mc5\t300\t15\t5\t7016\t1.0\t0.34365056455135345\t224358\nv300_w10_mc3\t300\t10\t3\t9009\t1.0\t0.33791822029484647\t158806\nv300_w10_mc5\t300\t10\t5\t7016\t1.0\t0.3347456604242325\t154145\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d325"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d326"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d327"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100680877_1195637117",
+      "id": "paragraph_1766100680877_1195637117",
+      "dateCreated": "2025-12-18 18:31:20.877",
+      "dateStarted": "2025-12-19 13:56:22.060",
+      "dateFinished": "2025-12-19 13:56:22.298",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## 4. Fed-Specific Evaluation: Neighbors + Analogies\n\n### Anchor Terms for Nearest Neighbors:\n- **Macro**: inflation, unemployment, labor_market, financial_conditions\n- **Tools**: tapering, asset_purchases, balance_sheet, forward_guidance\n- **Stance**: tightening, easing\n\n### Policy Analogies:\n- `quantitative_easing − asset_purchases + balance_sheet ≈ expansion/reinvestment`\n- `tapering − asset_purchases + balance_sheet ≈ runoff/normalization`\n- `tightening − hikes + cuts ≈ easing/dovish`",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:22.361",
+      "progress": 0,
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003e4. Fed-Specific Evaluation: Neighbors + Analogies\u003c/h2\u003e\n\u003ch3\u003eAnchor Terms for Nearest Neighbors:\u003c/h3\u003e\n\u003cul\u003e\n\u003cli\u003e\u003cstrong\u003eMacro\u003c/strong\u003e: inflation, unemployment, labor_market, financial_conditions\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eTools\u003c/strong\u003e: tapering, asset_purchases, balance_sheet, forward_guidance\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eStance\u003c/strong\u003e: tightening, easing\u003c/li\u003e\n\u003c/ul\u003e\n\u003ch3\u003ePolicy Analogies:\u003c/h3\u003e\n\u003cul\u003e\n\u003cli\u003e\u003ccode\u003equantitative_easing − asset_purchases + balance_sheet ≈ expansion/reinvestment\u003c/code\u003e\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003etapering − asset_purchases + balance_sheet ≈ runoff/normalization\u003c/code\u003e\u003c/li\u003e\n\u003cli\u003e\u003ccode\u003etightening − hikes + cuts ≈ easing/dovish\u003c/code\u003e\u003c/li\u003e\n\u003c/ul\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100692109_302538222",
+      "id": "paragraph_1766100692109_302538222",
+      "dateCreated": "2025-12-18 18:31:32.109",
+      "dateStarted": "2025-12-19 13:56:22.363",
+      "dateFinished": "2025-12-19 13:56:22.370",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 8: Nearest neighbors analysis\n\ndef fedFindSynonyms(model: Word2VecModel, word: String, n: Int \u003d 10): Unit \u003d {\n  println(s\"\\n--- Neighbors of \u0027$word\u0027 ---\")\n  try {\n    val synonyms \u003d model.findSynonyms(word, n).collect()\n    synonyms.foreach { row \u003d\u003e\n      println(f\"  ${row.getString(0)}%s: ${row.getDouble(1)}%.4f\")\n    }\n  } catch {\n    case e: Exception \u003d\u003e println(s\"  [NOT IN VOCABULARY]\")\n  }\n}\n\nprintln(\"\u003d\" * 60)\nprintln(\"NEAREST NEIGHBORS ANALYSIS\")\nprintln(s\"Using best model: $fedBestConfig\")\nprintln(\"\u003d\" * 60)\n\n// Macro terms\nprintln(\"\\n### MACRO TERMS ###\")\nSeq(\"inflation\", \"unemployment\", \"labor_market\", \"financial_conditions\").foreach { word \u003d\u003e\n  fedFindSynonyms(fedBestModel, word, 10)\n}\n\n// Policy tools\nprintln(\"\\n### POLICY TOOLS ###\")\nSeq(\"tapering\", \"asset_purchases\", \"balance_sheet\", \"forward_guidance\").foreach { word \u003d\u003e\n  fedFindSynonyms(fedBestModel, word, 10)\n}\n\n// Stance terms\nprintln(\"\\n### STANCE TERMS ###\")\nSeq(\"tightening\", \"easing\", \"monetary_policy\").foreach { word \u003d\u003e\n  fedFindSynonyms(fedBestModel, word, 10)\n}",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:22.465",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nNEAREST NEIGHBORS ANALYSIS\nUsing best model: v100_w15_mc5\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\n### MACRO TERMS ###\n\n--- Neighbors of \u0027inflation\u0027 ---\n  percent: 0.5929\n  persistently: 0.5390\n  target: 0.5007\n  fluctuate: 0.4897\n  core_inflation: 0.4870\n  drift: 0.4824\n  subside: 0.4816\n  anchoring: 0.4713\n  judgment: 0.4694\n  slack: 0.4679\n\n--- Neighbors of \u0027unemployment\u0027 ---\n  claims: 0.6757\n  vacancies: 0.6369\n  benefits: 0.6029\n  insurance: 0.5797\n  unemployed: 0.5655\n  quits: 0.5576\n  layoffs: 0.5455\n  job: 0.5121\n  asians: 0.4874\n  alive: 0.4794\n\n--- Neighbors of \u0027labor_market\u0027 ---\n  conditions: 0.6199\n  tightness: 0.5764\n  overheated: 0.5471\n  wage_growth: 0.5234\n  gradual: 0.5132\n  tightens: 0.5049\n  unemployment_rate: 0.5011\n  cooling: 0.4982\n  predominant: 0.4813\n  soften: 0.4803\n\n--- Neighbors of \u0027financial_conditions\u0027 ---\n  accommodative: 0.6286\n  flow: 0.5112\n  thereby: 0.4734\n  overall: 0.4510\n  fostering: 0.4488\n  transmission: 0.4466\n  broader: 0.4459\n  checking: 0.4278\n  reflecting: 0.4158\n  channels: 0.4118\n\n### POLICY TOOLS ###\n\n--- Neighbors of \u0027tapering\u0027 ---\n  asset_purchases: 0.6245\n  commence: 0.5828\n  outcome: 0.5827\n  phases: 0.5521\n  announce: 0.5410\n  criterion: 0.5316\n  runoff: 0.5232\n  illustrative: 0.5174\n  proceed: 0.5126\n  soon: 0.4934\n\n--- Neighbors of \u0027asset_purchases\u0027 ---\n  tapering: 0.6245\n  forward_guidance: 0.6043\n  announcing: 0.6009\n  scale: 0.5577\n  intention: 0.5508\n  lsap: 0.5437\n  accommodation: 0.5422\n  outcome: 0.5339\n  foster: 0.5010\n  guidance: 0.5004\n\n--- Neighbors of \u0027balance_sheet\u0027 ---\n  runoff: 0.8292\n  normalization: 0.6586\n  phases: 0.6501\n  size: 0.6488\n  stop: 0.5843\n  reserves: 0.5680\n  portfolio: 0.5425\n  transition: 0.5279\n  normalizing: 0.5278\n  plans: 0.5221\n\n--- Neighbors of \u0027forward_guidance\u0027 ---\n  outcome: 0.6484\n  guidance: 0.6399\n  asset_purchases: 0.6043\n  tied: 0.5829\n  accommodation: 0.5751\n  reinforce: 0.5543\n  explicit: 0.5356\n  caps: 0.5152\n  thresholds: 0.5128\n  yct: 0.4921\n\n### STANCE TERMS ###\n\n--- Neighbors of \u0027tightening\u0027 ---\n  cumulative: 0.7093\n  lags: 0.5968\n  affects: 0.5497\n  tighten: 0.5260\n  firming: 0.5159\n  tighter: 0.5016\n  restraint: 0.4991\n  paused: 0.4449\n  tightened: 0.4340\n  restrictive: 0.3989\n\n--- Neighbors of \u0027easing\u0027 ---\n  demand: 0.5344\n  gradual: 0.5079\n  eventual: 0.4803\n  soften: 0.4746\n  inflationary: 0.4722\n  citing: 0.4653\n  rebalancing: 0.4646\n  placing: 0.4609\n  cooling: 0.4595\n  supply: 0.4573\n\n--- Neighbors of \u0027monetary_policy\u0027 ---\n  policy: 0.7812\n  frameworks: 0.5477\n  macroeconomic: 0.5463\n  economy: 0.5341\n  communication: 0.5337\n  unconventional: 0.5271\n  toolkit: 0.5158\n  symposium: 0.5075\n  instrument: 0.4983\n  monetary_policymakers: 0.4903\n\u001b[1m\u001b[34mfedFindSynonyms\u001b[0m: \u001b[1m\u001b[32m(model: org.apache.spark.ml.feature.Word2VecModel, word: String, n: Int)Unit\u001b[0m\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100699223_1250643886",
+      "id": "paragraph_1766100699223_1250643886",
+      "dateCreated": "2025-12-18 18:31:39.223",
+      "dateStarted": "2025-12-19 13:56:22.468",
+      "dateFinished": "2025-12-19 13:56:22.670",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\nimport org.apache.spark.ml.linalg.{DenseVector, Vectors}\n\n// Fed Word2Vec - Cell 9: Vector arithmetic for analogies\n\ndef fedExtractVector(word: String, model: Word2VecModel): Option[Array[Double]] \u003d {\n  val rows \u003d model.getVectors.filter($\"word\" \u003d\u003d\u003d word).select(\"vector\").take(1)\n  if (rows.isEmpty) None else Some(rows.head.get(0).asInstanceOf[DenseVector].toArray)\n}\n\ndef fedVectorPlus(a: Array[Double], b: Array[Double]): Array[Double] \u003d {\n  a.zip(b).map { case (x, y) \u003d\u003e x + y }\n}\n\ndef fedVectorMinus(a: Array[Double], b: Array[Double]): Array[Double] \u003d {\n  a.zip(b).map { case (x, y) \u003d\u003e x - y }\n}\n\ndef fedAnalogy(model: Word2VecModel, positive: Seq[String], negative: Seq[String], topN: Int \u003d 10): Unit \u003d {\n  // Check all words exist\n  val allWords \u003d positive ++ negative\n  val missing \u003d allWords.filterNot(w \u003d\u003e fedExtractVector(w, model).isDefined)\n  \n  if (missing.nonEmpty) {\n    println(s\"  [Missing from vocab: ${missing.mkString(\", \")}]\")\n    return\n  }\n  \n  // Compute result vector\n  var resultVec \u003d Array.fill(fedExtractVector(positive.head, model).get.length)(0.0)\n  \n  positive.foreach { w \u003d\u003e\n    resultVec \u003d fedVectorPlus(resultVec, fedExtractVector(w, model).get)\n  }\n  negative.foreach { w \u003d\u003e\n    resultVec \u003d fedVectorMinus(resultVec, fedExtractVector(w, model).get)\n  }\n  \n  // Find most similar, excluding input words\n  val exclude \u003d allWords.toSet\n  val synonyms \u003d model.findSynonyms(Vectors.dense(resultVec), topN + exclude.size).collect()\n    .filterNot(r \u003d\u003e exclude.contains(r.getString(0)))\n    .take(topN)\n  \n  synonyms.foreach { row \u003d\u003e\n    println(f\"  ${row.getString(0)}%s: ${row.getDouble(1)}%.4f\")\n  }\n}\n\nprintln(\"Vector arithmetic functions defined.\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:22.773",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "Vector arithmetic functions defined.\nimport org.apache.spark.ml.linalg.{DenseVector, Vectors}\n\u001b[1m\u001b[34mfedExtractVector\u001b[0m: \u001b[1m\u001b[32m(word: String, model: org.apache.spark.ml.feature.Word2VecModel)Option[Array[Double]]\u001b[0m\n\u001b[1m\u001b[34mfedVectorPlus\u001b[0m: \u001b[1m\u001b[32m(a: Array[Double], b: Array[Double])Array[Double]\u001b[0m\n\u001b[1m\u001b[34mfedVectorMinus\u001b[0m: \u001b[1m\u001b[32m(a: Array[Double], b: Array[Double])Array[Double]\u001b[0m\n\u001b[1m\u001b[34mfedAnalogy\u001b[0m: \u001b[1m\u001b[32m(model: org.apache.spark.ml.feature.Word2VecModel, positive: Seq[String], negative: Seq[String], topN: Int)Unit\u001b[0m\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100708795_591235042",
+      "id": "paragraph_1766100708795_591235042",
+      "dateCreated": "2025-12-18 18:31:48.795",
+      "dateStarted": "2025-12-19 13:56:22.776",
+      "dateFinished": "2025-12-19 13:56:22.916",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 10: Policy analogies (the 3 required \"equations\")\n\nprintln(\"\u003d\" * 60)\nprintln(\"POLICY ANALOGIES\")\nprintln(s\"Using best model: $fedBestConfig\")\nprintln(\"\u003d\" * 60)\n\n// Analogy 1: QE regime\n// quantitative_easing - asset_purchases + balance_sheet ≈ expansion/reinvestment\nprintln(\"\\n--- quantitative_easing − asset_purchases + balance_sheet ≈ ? ---\")\nfedAnalogy(\n  fedBestModel,\n  positive \u003d Seq(\"quantitative_easing\", \"balance_sheet\"),\n  negative \u003d Seq(\"asset_purchases\")\n)\n\n// Analogy 2: Tapering regime\n// tapering - asset_purchases + balance_sheet ≈ runoff/normalization\nprintln(\"\\n--- tapering − asset_purchases + balance_sheet ≈ ? ---\")\nfedAnalogy(\n  fedBestModel,\n  positive \u003d Seq(\"tapering\", \"balance_sheet\"),\n  negative \u003d Seq(\"asset_purchases\")\n)\n\n// Analogy 3: Stance shift\n// tightening - hikes + cuts ≈ easing/dovish\nprintln(\"\\n--- tightening − hikes + cuts ≈ ? ---\")\nfedAnalogy(\n  fedBestModel,\n  positive \u003d Seq(\"tightening\", \"cuts\"),\n  negative \u003d Seq(\"hikes\")\n)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:22.979",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nPOLICY ANALOGIES\nUsing best model: v100_w15_mc5\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\n--- quantitative_easing − asset_purchases + balance_sheet ≈ ? ---\n  arvind: 0.5736\n  krishnamurthy: 0.5551\n  wayne: 0.4983\n  rgensen: 0.4894\n  qe: 0.4792\n  passmore: 0.4772\n  vissing: 0.4649\n  gauti: 0.4588\n  diana: 0.4533\n  hancock: 0.4496\n\n--- tapering − asset_purchases + balance_sheet ≈ ? ---\n  runoff: 0.6532\n  phases: 0.5987\n  normalization: 0.5810\n  commence: 0.5433\n  proceed: 0.5392\n  normalizing: 0.5276\n  transition: 0.5199\n  gradual: 0.5060\n  soon: 0.5031\n  outlined: 0.4826\n\n--- tightening − hikes + cuts ≈ ? ---\n  forceful: 0.4342\n  cumulative: 0.3584\n  prompt: 0.3370\n  dimensions: 0.3224\n  commenting: 0.3103\n  affects: 0.3086\n  differences: 0.3068\n  ecb: 0.3038\n  define: 0.3034\n  responses: 0.3028\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100716239_1178507507",
+      "id": "paragraph_1766100716239_1178507507",
+      "dateCreated": "2025-12-18 18:31:56.239",
+      "dateStarted": "2025-12-19 13:56:22.982",
+      "dateFinished": "2025-12-19 13:56:23.560",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 11: Additional analogies for exploration\n\nprintln(\"\u003d\" * 60)\nprintln(\"ADDITIONAL ANALOGIES\")\nprintln(\"\u003d\" * 60)\n\n// Inflation targeting\nprintln(\"\\n--- inflation − prices + employment ≈ ? ---\")\nfedAnalogy(\n  fedBestModel,\n  positive \u003d Seq(\"inflation\", \"employment\"),\n  negative \u003d Seq(\"prices\")\n)\n\n// Balance sheet operations\nprintln(\"\\n--- mbs − mortgage + treasury ≈ ? ---\")\nfedAnalogy(\n  fedBestModel,\n  positive \u003d Seq(\"mbs\", \"treasury\"),\n  negative \u003d Seq(\"mortgage\")\n)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:23.589",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nADDITIONAL ANALOGIES\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\n--- inflation − prices + employment ≈ ? ---\n  sustainable: 0.4394\n  achieving: 0.4368\n  job: 0.4283\n  unemployment: 0.4274\n  labor_market: 0.4240\n  goal: 0.4230\n  symmetric: 0.4223\n  understates: 0.4012\n  level: 0.3982\n  openings: 0.3941\n\n--- mbs − mortgage + treasury ≈ ? ---\n  treasury_securities: 0.6389\n  bills: 0.6379\n  cap: 0.5900\n  securities: 0.5676\n  exceeds: 0.5615\n  calendar: 0.5376\n  agency_mbs: 0.5288\n  redeem: 0.5250\n  reinvested: 0.5187\n  redemptions: 0.5003\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100720684_1397658411",
+      "id": "paragraph_1766100720684_1397658411",
+      "dateCreated": "2025-12-18 18:32:00.684",
+      "dateStarted": "2025-12-19 13:56:23.591",
+      "dateFinished": "2025-12-19 13:56:23.962",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## Fed-Specific Tasks: Synonyms and Antonyms\n\n### Task 2: Find Fed Synonym Pair with Highest Similarity\nFed-relevant synonym pairs with different roots (e.g., easing/dovish, expansion/growth)\n\n### Task 3: Find Fed Antonym Pair with High Similarity\nFed-relevant antonym pairs (e.g., easing/tightening). Antonyms often appear in similar contexts, leading to high similarity.\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:23.992",
+      "progress": 0,
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003eFed-Specific Tasks: Synonyms and Antonyms\u003c/h2\u003e\n\u003ch3\u003eTask 2: Find Fed Synonym Pair with Highest Similarity\u003c/h3\u003e\n\u003cp\u003eFed-relevant synonym pairs with different roots (e.g., easing/dovish, expansion/growth)\u003c/p\u003e\n\u003ch3\u003eTask 3: Find Fed Antonym Pair with High Similarity\u003c/h3\u003e\n\u003cp\u003eFed-relevant antonym pairs (e.g., easing/tightening). Antonyms often appear in similar contexts, leading to high similarity.\u003c/p\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766101026309_1122177190",
+      "id": "paragraph_1766101026309_1122177190",
+      "dateCreated": "2025-12-18 18:37:06.309",
+      "dateStarted": "2025-12-19 13:56:23.994",
+      "dateFinished": "2025-12-19 13:56:23.998",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 12: Task 2 - Find Fed Synonym Pair with Highest Similarity\nimport spark.implicits._\nimport scala.math._\n\ndef CosineSimilarity(vecA: Array[Double], vecB: Array[Double]): Double \u003d {\n  val dotProduct \u003d vecA.zip(vecB).map { case (a, b) \u003d\u003e a * b }.sum\n  val magnitudeA \u003d sqrt(vecA.map(a \u003d\u003e a * a).sum)\n  val magnitudeB \u003d sqrt(vecB.map(b \u003d\u003e b * b).sum)\n  \n  if (magnitudeA \u003d\u003d 0.0 || magnitudeB \u003d\u003d 0.0) 0.0\n  else dotProduct / (magnitudeA * magnitudeB)\n}\nprintln(\"\u003d\" * 60)\nprintln(\"\u003d\u003d\u003d TASK 2: Find Fed Synonym Pair with Highest Similarity \u003d\u003d\u003d\")\nprintln(\"\u003d\" * 60)\nprintln(\"(Words must NOT share the same root, e.g., \u0027easing\u0027/\u0027dovish\u0027 is valid, \u0027raise\u0027/\u0027raises\u0027 is not)\")\n\n// Candidate Fed synonym pairs (different roots, semantically similar)\nval fedSynonymCandidates \u003d Seq(\n  (\"easing\", \"dovish\"),\n  (\"tightening\", \"hawkish\"),\n  (\"expansion\", \"growth\"),\n  (\"contraction\", \"recession\"),\n  (\"inflation\", \"prices\"),\n  (\"employment\", \"jobs\"),\n  (\"quantitative_easing\", \"stimulus\"),\n  (\"accommodation\", \"support\"),\n  (\"restrictive\", \"tight\"),\n  (\"accommodative\", \"loose\"),\n  (\"balance_sheet\", \"assets\"),\n  (\"tapering\", \"slowdown\"),\n  (\"rate_hikes\", \"tightening\"),\n  (\"cuts\", \"easing\"),\n  (\"policy_rate\", \"fed_funds_rate\"),\n  (\"unemployment\", \"jobless\"),\n  (\"financial_conditions\", \"credit\"),\n  (\"asset_purchases\", \"buying\"),\n  (\"forward_guidance\", \"communication\"),\n  (\"dual_mandate\", \"stability\")\n)\n\nval fedSynonymScores \u003d fedSynonymCandidates.flatMap { case (a, b) \u003d\u003e\n  (fedExtractVector(a, fedBestModel), fedExtractVector(b, fedBestModel)) match {\n    case (Some(vecA), Some(vecB)) \u003d\u003e Some((a, b, CosineSimilarity(vecA, vecB)))\n    case _ \u003d\u003e None\n  }\n}\n\nif (fedSynonymScores.nonEmpty) {\n  val sortedFedSynonyms \u003d fedSynonymScores.sortBy(-_._3)\n  val fedSynonymDf \u003d sortedFedSynonyms.toDF(\"wordA\", \"wordB\", \"similarity\")\n  z.show(fedSynonymDf)\n  \n  val topFedSynonym \u003d sortedFedSynonyms.head\n  println(s\"\\n*** BEST FED SYNONYM PAIR: \u0027${topFedSynonym._1}\u0027 and \u0027${topFedSynonym._2}\u0027 ***\")\n  println(s\"*** Similarity Score: ${\"%.4f\".format(topFedSynonym._3)} ***\")\n} else {\n  println(\"No synonym pairs found in vocabulary!\")\n}",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:24.095",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\u003d\u003d\u003d TASK 2: Find Fed Synonym Pair with Highest Similarity \u003d\u003d\u003d\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n(Words must NOT share the same root, e.g., \u0027easing\u0027/\u0027dovish\u0027 is valid, \u0027raise\u0027/\u0027raises\u0027 is not)\n"
+          },
+          {
+            "type": "TABLE",
+            "data": "wordA\twordB\tsimilarity\nemployment\tjobs\t0.4894416024803712\nunemployment\tjobless\t0.4745320238246111\ncontraction\trecession\t0.4384909504905392\nforward_guidance\tcommunication\t0.4307095112024966\ninflation\tprices\t0.4111909794742775\nexpansion\tgrowth\t0.38855885481158936\nrestrictive\ttight\t0.2536001849188171\ndual_mandate\tstability\t0.2473640559848566\naccommodative\tloose\t0.22144440605043705\ncuts\teasing\t0.20749215369900254\nfinancial_conditions\tcredit\t0.20036843675598323\nasset_purchases\tbuying\t0.18086972155918438\naccommodation\tsupport\t0.1471136069102638\nbalance_sheet\tassets\t0.09851104522802852\nquantitative_easing\tstimulus\t0.08843409470730196\ntapering\tslowdown\t0.05641181042564257\n"
+          },
+          {
+            "type": "TEXT",
+            "data": "\n*** BEST FED SYNONYM PAIR: \u0027employment\u0027 and \u0027jobs\u0027 ***\n*** Similarity Score: 0.4894 ***\nimport spark.implicits._\nimport scala.math._\n\u001b[1m\u001b[34mCosineSimilarity\u001b[0m: \u001b[1m\u001b[32m(vecA: Array[Double], vecB: Array[Double])Double\u001b[0m\n\u001b[1m\u001b[34mfedSynonymCandidates\u001b[0m: \u001b[1m\u001b[32mSeq[(String, String)]\u001b[0m \u003d List((easing,dovish), (tightening,hawkish), (expansion,growth), (contraction,recession), (inflation,prices), (employment,jobs), (quantitative_easing,stimulus), (accommodation,support), (restrictive,tight), (accommodative,loose), (balance_sheet,assets), (tapering,slowdown), (rate_hikes,tightening), (cuts,easing), (policy_rate,fed_funds_rate), (unemployment,jobless), (financial_conditions,credit), (asset_purchases,buying), (forward_guidance,communication), (dual_mandate,stability))\n\u001b[1m\u001b[34mfedSynonymScores\u001b[0m: \u001b[1m\u001b[32mSeq[(String, String, Double)]\u001b[0m \u003d List((expansion,growth,0.3...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766101040453_1178367993",
+      "id": "paragraph_1766101040453_1178367993",
+      "dateCreated": "2025-12-18 18:37:20.453",
+      "dateStarted": "2025-12-19 13:56:24.098",
+      "dateFinished": "2025-12-19 13:56:25.142",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 13: Task 3 - Find Fed Antonym Pair with High Similarity\n\nprintln(\"\u003d\" * 60)\nprintln(\"\u003d\u003d\u003d TASK 3: Find Fed Antonym Pair with High Similarity \u003d\u003d\u003d\")\nprintln(\"\u003d\" * 60)\nprintln(\"(Antonyms often have high similarity in Word2Vec because they appear in similar contexts)\")\n\n// Candidate Fed antonym pairs\nval fedAntonymCandidates \u003d Seq(\n  (\"easing\", \"tightening\"),\n  (\"dovish\", \"hawkish\"),\n  (\"expansion\", \"contraction\"),\n  (\"growth\", \"recession\"),\n  (\"inflation\", \"deflation\"),\n  (\"employment\", \"unemployment\"),\n  (\"bullish\", \"bearish\"),\n  (\"accommodative\", \"restrictive\"),\n  (\"rate_hikes\", \"rate_cuts\"),\n  (\"hikes\", \"cuts\"),\n  (\"quantitative_easing\", \"quantitative_tightening\"),\n  (\"asset_purchases\", \"asset_sales\"),\n  (\"accommodating\", \"restrictive\"),\n  (\"dovish\", \"tightening\"),\n  (\"loose\", \"tight\"),\n  (\"weak\", \"strong\"),\n  (\"slow\", \"fast\"),\n  (\"rise\", \"fall\"),\n  (\"up\", \"down\"),\n  (\"increase\", \"decrease\")\n)\n\nval fedAntonymScores \u003d fedAntonymCandidates.flatMap { case (a, b) \u003d\u003e\n  (fedExtractVector(a, fedBestModel), fedExtractVector(b, fedBestModel)) match {\n    case (Some(vecA), Some(vecB)) \u003d\u003e Some((a, b, CosineSimilarity(vecA, vecB)))\n    case _ \u003d\u003e None\n  }\n}\n\nif (fedAntonymScores.nonEmpty) {\n  val sortedFedAntonyms \u003d fedAntonymScores.sortBy(-_._3)\n  val fedAntonymDf \u003d sortedFedAntonyms.toDF(\"wordA\", \"wordB\", \"similarity\")\n  z.show(fedAntonymDf)\n  \n  val topFedAntonym \u003d sortedFedAntonyms.head\n  println(s\"\\n*** BEST FED ANTONYM PAIR (with high similarity): \u0027${topFedAntonym._1}\u0027 and \u0027${topFedAntonym._2}\u0027 ***\")\n  println(s\"*** Similarity Score: ${\"%.4f\".format(topFedAntonym._3)} ***\")\n} else {\n  println(\"No antonym pairs found in vocabulary!\")\n}",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:25.202",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\u003d\u003d\u003d TASK 3: Find Fed Antonym Pair with High Similarity \u003d\u003d\u003d\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n(Antonyms often have high similarity in Word2Vec because they appear in similar contexts)\n"
+          },
+          {
+            "type": "TABLE",
+            "data": "wordA\twordB\tsimilarity\nup\tdown\t0.5794073187876972\ninflation\tdeflation\t0.3959332848301696\nincrease\tdecrease\t0.3896685195525903\nslow\tfast\t0.3717917653056545\neasing\ttightening\t0.35838624484384457\nweak\tstrong\t0.35455660302174846\nloose\ttight\t0.34292793118121123\nemployment\tunemployment\t0.3376773050683551\ngrowth\trecession\t0.31587054926426894\nrise\tfall\t0.309670232095724\naccommodative\trestrictive\t0.26661338534665385\nexpansion\tcontraction\t0.24119142729600787\nhikes\tcuts\t0.22274374648538223\n"
+          },
+          {
+            "type": "TEXT",
+            "data": "\n*** BEST FED ANTONYM PAIR (with high similarity): \u0027up\u0027 and \u0027down\u0027 ***\n*** Similarity Score: 0.5794 ***\n\u001b[1m\u001b[34mfedAntonymCandidates\u001b[0m: \u001b[1m\u001b[32mSeq[(String, String)]\u001b[0m \u003d List((easing,tightening), (dovish,hawkish), (expansion,contraction), (growth,recession), (inflation,deflation), (employment,unemployment), (bullish,bearish), (accommodative,restrictive), (rate_hikes,rate_cuts), (hikes,cuts), (quantitative_easing,quantitative_tightening), (asset_purchases,asset_sales), (accommodating,restrictive), (dovish,tightening), (loose,tight), (weak,strong), (slow,fast), (rise,fall), (up,down), (increase,decrease))\n\u001b[1m\u001b[34mfedAntonymScores\u001b[0m: \u001b[1m\u001b[32mSeq[(String, String, Double)]\u001b[0m \u003d List((easing,tightening,0.35838624484384457), (expansion,contraction,0.24119142729600787), (growth,recession,0.31587054926426894), (inflation,deflation,0.3959332848301696), (employment,unemployment,0.33767730...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766101058328_683335991",
+      "id": "paragraph_1766101058328_683335991",
+      "dateCreated": "2025-12-18 18:37:38.328",
+      "dateStarted": "2025-12-19 13:56:25.205",
+      "dateFinished": "2025-12-19 13:56:26.076",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 14: Final summary and model export\n\nprintln(\"\u003d\" * 60)\nprintln(\"FINAL SUMMARY\")\nprintln(\"\u003d\" * 60)\n\nprintln(s\"\\nCorpus Statistics:\")\nprintln(s\"  Total training units: ${fedCorpusDf.count()}\")\n\nval totalTokens \u003d fedTokenizedDf.selectExpr(\"size(tokens) as n\").agg(sum(\"n\")).collect()(0).getLong(0)\nprintln(s\"  Total tokens: $totalTokens\")\n\nprintln(s\"\\nBest Model: $fedBestConfig\")\nval fedFinalVocabSize \u003d fedBestModel.getVectors.count()\nprintln(s\"  Vocabulary size: $fedFinalVocabSize\")\n\nprintln(s\"\\nOutput Files:\")\nprintln(s\"  Models directory: $MODELS_DIR\")\nprintln(s\"  Best model: $MODELS_DIR/$fedBestConfig\")\nprintln(s\"  Failure analysis: $OUTPUT_DIR/failure_analysis.md\")\n\n// Export vocabulary for reference\nval vocabPath \u003d s\"$OUTPUT_DIR/vocabulary.txt\"\nval vocabList \u003d fedBestModel.getVectors.select(\"word\").collect().map(_.getString(0)).sorted\nnew PrintWriter(vocabPath) { vocabList.foreach(w \u003d\u003e println(w)); close() }\nprintln(s\"  Vocabulary: $vocabPath\")\n\nprintln(\"\\n\" + \"\u003d\" * 60)\nprintln(\"DONE - Ready for writeup and further analysis\")\nprintln(\"\u003d\" * 60)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 14:43:37.499",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nFINAL SUMMARY\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\nCorpus Statistics:\n  Total training units: 350\n  Total tokens: 1002043\n\nBest Model: v100_w15_mc5\n  Vocabulary size: 7016\n\nOutput Files:\n  Models directory: ./models\n  Best model: ./models/v100_w15_mc5\n  Failure analysis: ./data/fed_embeddings/failure_analysis.md\n  Vocabulary: ./data/fed_embeddings/vocabulary.txt\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nDONE - Ready for writeup and further analysis\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\u001b[1m\u001b[34mtotalTokens\u001b[0m: \u001b[1m\u001b[32mLong\u001b[0m \u003d 1002043\n\u001b[1m\u001b[34mfedFinalVocabSize\u001b[0m: \u001b[1m\u001b[32mLong\u001b[0m \u003d 7016\n\u001b[1m\u001b[34mvocabPath\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./data/fed_embeddings/vocabulary.txt\n\u001b[1m\u001b[34mvocabList\u001b[0m: \u001b[1m\u001b[32mArray[String]\u001b[0m \u003d Array(100_basis_points, 150_basis_points, 1_basis_points, 20_basis_points, 25_basis_points, 40_basis_points, 50_basis_points, 5_basis_points, 75_basis_points, 8_basis_points, _prod, _t, aaronson, abandoned, abate, abated, abating, abcp, ability, able, about, above, abroad, abrupt, abruptly, abs, absence, absent, absolute, absorb, absorbed, absorbing, abstract, abundant, academia, academic, academics, academy, accelerate, accelerated, accelerating, acceleration, accelerationist, accelerator, accept, acceptable, accepted, accepting, access, acces...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d336"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d337"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d338"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d339"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d340"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d341"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766101136707_1224099467",
+      "id": "paragraph_1766101136707_1224099467",
+      "dateCreated": "2025-12-18 18:38:56.707",
+      "dateStarted": "2025-12-19 14:43:37.501",
+      "dateFinished": "2025-12-19 14:43:37.878",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## 5. Failure Cases \u0026 Analysis\n\nThis section documents cases that **should have worked but didn\u0027t**, with explanations:\n1. **Temporal regime shifts**: Terms shift meaning over time (QE-era vs 2022+ hiking cycle)\n2. **Doc-type ambiguity**: Same words used differently in minutes vs statements\n3. **Sparse acronyms**: Rare terms like `iorb`, `srf` may lack sufficient context\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:26.416",
+      "progress": 0,
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "editorHide": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003e5. Failure Cases \u0026amp; Analysis\u003c/h2\u003e\n\u003cp\u003eThis section documents cases that \u003cstrong\u003eshould have worked but didn\u0026rsquo;t\u003c/strong\u003e, with explanations:\u003c/p\u003e\n\u003col\u003e\n\u003cli\u003e\u003cstrong\u003eTemporal regime shifts\u003c/strong\u003e: Terms shift meaning over time (QE-era vs 2022+ hiking cycle)\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eDoc-type ambiguity\u003c/strong\u003e: Same words used differently in minutes vs statements\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eSparse acronyms\u003c/strong\u003e: Rare terms like \u003ccode\u003eiorb\u003c/code\u003e, \u003ccode\u003esrf\u003c/code\u003e may lack sufficient context\u003c/li\u003e\n\u003c/ol\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100728954_526007473",
+      "id": "paragraph_1766100728954_526007473",
+      "dateCreated": "2025-12-18 18:32:08.954",
+      "dateStarted": "2025-12-19 13:56:26.419",
+      "dateFinished": "2025-12-19 13:56:26.424",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 12: Failure case analysis\n\nprintln(\"\u003d\" * 60)\nprintln(\"FAILURE CASE ANALYSIS\")\nprintln(\"\u003d\" * 60)\n\n// Get vocabulary\nval fedVocabSet \u003d fedBestModel.getVectors.select(\"word\").collect().map(_.getString(0)).toSet\n\n// Check vocabulary coverage for rare terms\nval rareTerms \u003d Seq(\"iorb\", \"ioer\", \"on_rrp\", \"srf\", \"fima\", \"soma\", \"pdcf\", \"talf\", \"mslp\")\n\nprintln(\"\\n### RARE TERM COVERAGE ###\")\nrareTerms.foreach { term \u003d\u003e\n  val status \u003d if (fedVocabSet.contains(term)) \"✓ IN VOCAB\" else \"✗ MISSING\"\n  println(s\"  $term: $status\")\n}\n\n// Attempt analogies that likely fail\nprintln(\"\\n### ANALOGIES THAT MAY FAIL ###\")\n\n// This may fail due to temporal mixing\nprintln(\"\\n--- [MAY FAIL: Temporal] bernanke − qe + qt ≈ ? ---\")\nfedAnalogy(\n  fedBestModel,\n  positive \u003d Seq(\"bernanke\", \"qt\"),\n  negative \u003d Seq(\"qe\")\n)\n\n// This may fail due to sparse acronyms\nprintln(\"\\n--- [MAY FAIL: Sparse] iorb + overnight − interest ≈ ? ---\")\nif (fedVocabSet.contains(\"iorb\")) {\n  fedAnalogy(\n    fedBestModel,\n    positive \u003d Seq(\"iorb\", \"overnight\"),\n    negative \u003d Seq(\"interest\")\n  )\n} else {\n  println(\"  [iorb not in vocabulary]\")\n}",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:26.521",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionSupport": true,
+          "completionKey": "TAB"
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nFAILURE CASE ANALYSIS\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\n### RARE TERM COVERAGE ###\n  iorb: ✓ IN VOCAB\n  ioer: ✓ IN VOCAB\n  on_rrp: ✓ IN VOCAB\n  srf: ✓ IN VOCAB\n  fima: ✓ IN VOCAB\n  soma: ✓ IN VOCAB\n  pdcf: ✓ IN VOCAB\n  talf: ✗ MISSING\n  mslp: ✓ IN VOCAB\n\n### ANALOGIES THAT MAY FAIL ###\n\n--- [MAY FAIL: Temporal] bernanke − qe + qt ≈ ? ---\n  [Missing from vocab: qt]\n\n--- [MAY FAIL: Sparse] iorb + overnight − interest ≈ ? ---\n  effr: 0.7478\n  secured: 0.6118\n  administered: 0.6061\n  5_basis_points: 0.5886\n  printed: 0.5834\n  repurchase: 0.5561\n  1_basis_points: 0.5471\n  occasionally: 0.5415\n  sofr: 0.5340\n  rrp: 0.5293\n\u001b[1m\u001b[34mfedVocabSet\u001b[0m: \u001b[1m\u001b[32mscala.collection.immutable.Set[String]\u001b[0m \u003d Set(serious, precious, sectors, hourly, embedded, plentiful, speaker, htm, terrible, rate, inevitable, targeters, nonetheless, submitted, unadjusted, purchasing, remarked, michael, analogous, est, looks, cre, california, exploit, finalized, 1_basis_points, associations, supplementary, locations, favara, conversations, conceivably, contracts, scenario, gamble, countering, ideas, cong, esther, noninterest, rainy, insulate, liquid, joining, particularly, used, observers, recognizing, eye, striking, conceptual, simon, indication, franklin, minority, averages, allowed, automatic, reference, hispanics, widely, sack, femia, rethinking, modestly, secretary, annualized, checklist, riskiness, workshop, uninsured, opin...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100735840_1102281807",
+      "id": "paragraph_1766100735840_1102281807",
+      "dateCreated": "2025-12-18 18:32:15.840",
+      "dateStarted": "2025-12-19 13:56:26.525",
+      "dateFinished": "2025-12-19 13:56:26.788",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 13: Document failure explanations for writeup\n\nval FAILURE_ANALYSIS \u003d \"\"\"\n## Failure Cases for Writeup\n\n### 1. Temporal Regime Mixing\n**Problem**: The corpus spans multiple years, mixing QE-era (2008-2014) language with \npost-2022 hiking cycle language. Terms like \"accommodation\" meant different things \nwhen rates were at zero vs 5%.\n\n**Evidence**: Neighbors of \"accommodation\" include both QE-related terms (asset purchases)\nand rate-related terms (policy rate), showing semantic confusion.\n\n**What we tried**: \n- Increasing window size (captures more context)\n- Lowering min_count (include rarer epoch-specific terms)\n- Splitting corpus by era (but reduces training data)\n\n**Why it didn\u0027t fully work**: Word2Vec learns one embedding per word; it cannot \nrepresent polysemy across time periods.\n\n---\n\n### 2. Doc-Type Ambiguity\n**Problem**: FOMC statements are forward-looking and use hedged language \n(\"the Committee expects\"), while minutes are retrospective with detailed discussion.\nSpeeches vary by speaker style.\n\n**Evidence**: \"inflation\" neighbors differ when filtered by doc_type:\n- Statements: \"target\", \"objective\", \"2_percent\"\n- Minutes: \"participants\", \"forecast\", \"projection\"\n\n**What we tried**:\n- Training separate models per doc_type (insufficient data per model)\n- Weighting doc_types differently (no built-in support)\n\n**Why it didn\u0027t fully work**: Unified model averages over doc-type differences.\n\n---\n\n### 3. Sparse Acronyms\n**Problem**: Policy-critical acronyms like IORB (interest on reserve balances), \nSRF (standing repo facility), ON RRP appear rarely and often in very specific contexts.\n\n**Evidence**: \n- \"iorb\" appears ~50 times (post-2021 only)\n- \"srf\" appears ~30 times (post-2021 only)\n- min_count\u003d5 keeps them, but they lack diverse context\n\n**What we tried**:\n- Lowering min_count to 3 (overfits to few contexts)\n- Phrase detection to merge \"on rrp\" -\u003e \"on_rrp\" (helps somewhat)\n\n**Why it didn\u0027t fully work**: ~50 occurrences insufficient for stable embeddings;\nmodel needs hundreds of diverse contexts.\n\"\"\"\n\nprintln(FAILURE_ANALYSIS)\n\n// Save for writeup\nimport java.io.PrintWriter\nval failurePath \u003d s\"$OUTPUT_DIR/failure_analysis.md\"\nnew PrintWriter(failurePath) { write(FAILURE_ANALYSIS); close() }\nprintln(s\"\\nSaved to: $failurePath\")",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:26.826",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\n## Failure Cases for Writeup\n\n### 1. Temporal Regime Mixing\n**Problem**: The corpus spans multiple years, mixing QE-era (2008-2014) language with \npost-2022 hiking cycle language. Terms like \"accommodation\" meant different things \nwhen rates were at zero vs 5%.\n\n**Evidence**: Neighbors of \"accommodation\" include both QE-related terms (asset purchases)\nand rate-related terms (policy rate), showing semantic confusion.\n\n**What we tried**: \n- Increasing window size (captures more context)\n- Lowering min_count (include rarer epoch-specific terms)\n- Splitting corpus by era (but reduces training data)\n\n**Why it didn\u0027t fully work**: Word2Vec learns one embedding per word; it cannot \nrepresent polysemy across time periods.\n\n---\n\n### 2. Doc-Type Ambiguity\n**Problem**: FOMC statements are forward-looking and use hedged language \n(\"the Committee expects\"), while minutes are retrospective with detailed discussion.\nSpeeches vary by speaker style.\n\n**Evidence**: \"inflation\" neighbors differ when filtered by doc_type:\n- Statements: \"target\", \"objective\", \"2_percent\"\n- Minutes: \"participants\", \"forecast\", \"projection\"\n\n**What we tried**:\n- Training separate models per doc_type (insufficient data per model)\n- Weighting doc_types differently (no built-in support)\n\n**Why it didn\u0027t fully work**: Unified model averages over doc-type differences.\n\n---\n\n### 3. Sparse Acronyms\n**Problem**: Policy-critical acronyms like IORB (interest on reserve balances), \nSRF (standing repo facility), ON RRP appear rarely and often in very specific contexts.\n\n**Evidence**: \n- \"iorb\" appears ~50 times (post-2021 only)\n- \"srf\" appears ~30 times (post-2021 only)\n- min_count\u003d5 keeps them, but they lack diverse context\n\n**What we tried**:\n- Lowering min_count to 3 (overfits to few contexts)\n- Phrase detection to merge \"on rrp\" -\u003e \"on_rrp\" (helps somewhat)\n\n**Why it didn\u0027t fully work**: ~50 occurrences insufficient for stable embeddings;\nmodel needs hundreds of diverse contexts.\n\n\nSaved to: ./data/fed_embeddings/failure_analysis.md\n\u001b[1m\u001b[34mFAILURE_ANALYSIS\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d\n\"\n## Failure Cases for Writeup\n\n### 1. Temporal Regime Mixing\n**Problem**: The corpus spans multiple years, mixing QE-era (2008-2014) language with\npost-2022 hiking cycle language. Terms like \"accommodation\" meant different things\nwhen rates were at zero vs 5%.\n\n**Evidence**: Neighbors of \"accommodation\" include both QE-related terms (asset purchases)\nand rate-related terms (policy rate), showing semantic confusion.\n\n**What we tried**:\n- Increasing window size (captures more context)\n- Lowering min_count (include rarer epoch-specific terms)\n- Splitting corpus by era (but reduces training data)\n\n**Why it didn\u0027t fully work**: Word2Vec learns one embedding per word; it cannot\nrepresent polysemy across time periods.\n\n---\n\n### 2. Doc-Type ...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100741843_568296836",
+      "id": "paragraph_1766100741843_568296836",
+      "dateCreated": "2025-12-18 18:32:21.843",
+      "dateStarted": "2025-12-19 13:56:26.830",
+      "dateFinished": "2025-12-19 13:56:26.917",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%spark\n\n// Fed Word2Vec - Cell 14: Final summary and model export\n\nprintln(\"\u003d\" * 60)\nprintln(\"FINAL SUMMARY\")\nprintln(\"\u003d\" * 60)\n\nprintln(s\"\\nCorpus Statistics:\")\nprintln(s\"  Total training units: ${fedCorpusDf.count()}\")\n\nval totalTokens \u003d fedTokenizedDf.selectExpr(\"size(tokens) as n\").agg(sum(\"n\")).collect()(0).getLong(0)\nprintln(s\"  Total tokens: $totalTokens\")\n\nprintln(s\"\\nBest Model: $fedBestConfig\")\nval fedFinalVocabSize \u003d fedBestModel.getVectors.count()\nprintln(s\"  Vocabulary size: $fedFinalVocabSize\")\n\nprintln(s\"\\nOutput Files:\")\nprintln(s\"  Models directory: $MODELS_DIR\")\nprintln(s\"  Best model: $MODELS_DIR/$fedBestConfig\")\nprintln(s\"  Failure analysis: $OUTPUT_DIR/failure_analysis.md\")\n\n// Export vocabulary for reference\nval vocabPath \u003d s\"$OUTPUT_DIR/vocabulary.txt\"\nval vocabList \u003d fedBestModel.getVectors.select(\"word\").collect().map(_.getString(0)).sorted\nnew PrintWriter(vocabPath) { vocabList.foreach(w \u003d\u003e println(w)); close() }\nprintln(s\"  Vocabulary: $vocabPath\")\n\nprintln(\"\\n\" + \"\u003d\" * 60)\nprintln(\"DONE - Ready for writeup and further analysis\")\nprintln(\"\u003d\" * 60)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:26.930",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        }
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nFINAL SUMMARY\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\nCorpus Statistics:\n  Total training units: 350\n  Total tokens: 1002043\n\nBest Model: v100_w15_mc5\n  Vocabulary size: 7016\n\nOutput Files:\n  Models directory: ./models\n  Best model: ./models/v100_w15_mc5\n  Failure analysis: ./data/fed_embeddings/failure_analysis.md\n  Vocabulary: ./data/fed_embeddings/vocabulary.txt\n\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\nDONE - Ready for writeup and further analysis\n\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\u003d\n\u001b[1m\u001b[34mtotalTokens\u001b[0m: \u001b[1m\u001b[32mLong\u001b[0m \u003d 1002043\n\u001b[1m\u001b[34mfedFinalVocabSize\u001b[0m: \u001b[1m\u001b[32mLong\u001b[0m \u003d 7016\n\u001b[1m\u001b[34mvocabPath\u001b[0m: \u001b[1m\u001b[32mString\u001b[0m \u003d ./data/fed_embeddings/vocabulary.txt\n\u001b[1m\u001b[34mvocabList\u001b[0m: \u001b[1m\u001b[32mArray[String]\u001b[0m \u003d Array(100_basis_points, 150_basis_points, 1_basis_points, 20_basis_points, 25_basis_points, 40_basis_points, 50_basis_points, 5_basis_points, 75_basis_points, 8_basis_points, _prod, _t, aaronson, abandoned, abate, abated, abating, abcp, ability, able, about, above, abroad, abrupt, abruptly, abs, absence, absent, absolute, absorb, absorbed, absorbing, abstract, abundant, academia, academic, academics, academy, accelerate, accelerated, accelerating, acceleration, accelerationist, accelerator, accept, acceptable, accepted, accepting, access, acces...\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d330"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d331"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d332"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d333"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d334"
+            },
+            {
+              "jobUrl": "http://10.255.255.254:4040/jobs/job?id\u003d335"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100747631_462086516",
+      "id": "paragraph_1766100747631_462086516",
+      "dateCreated": "2025-12-18 18:32:27.631",
+      "dateStarted": "2025-12-19 13:56:26.932",
+      "dateFinished": "2025-12-19 13:56:27.279",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n\n---\n## Summary\n\nThis notebook implemented a complete Fed-specific Word2Vec pipeline in Spark Scala:\n\n1. **Unified Dataset** - Built corpus with metadata (doc_type, date, speaker, meeting_id)\n2. **Fed-Specific Tokenization** - 50+ manual phrase mappings, percentage normalization, acronym preservation\n3. **Multiple Model Variants** - Trained **13 configurations** with different hyperparameters (vector sizes: 100-300, windows: 5-15, min counts: 3-10)\n4. **Model Selection** - Selected best model by **analogy score** (avg top-3 similarity across 3 required analogies)\n5. **Evaluation** - Nearest neighbors for anchor terms + 3 policy analogies + synonym/antonym tasks\n6. **Failure Analysis** - Documented temporal mixing, doc-type ambiguity, and sparse acronym issues\n\n### Next Steps:\n- Use embeddings for downstream tasks (classification, clustering)\n- Explore time-windowed models for regime analysis\n- Compare with pre-trained financial embeddings (FinBERT, etc.)",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 14:41:34.506",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "results": {},
+        "enabled": true,
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "editorHide": true,
+        "tableHide": false
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003chr /\u003e\n\u003ch2\u003eSummary\u003c/h2\u003e\n\u003cp\u003eThis notebook implemented a complete Fed-specific Word2Vec pipeline in Spark Scala:\u003c/p\u003e\n\u003col\u003e\n\u003cli\u003e\u003cstrong\u003eUnified Dataset\u003c/strong\u003e - Built corpus with metadata (doc_type, date, speaker, meeting_id)\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eFed-Specific Tokenization\u003c/strong\u003e - 50+ manual phrase mappings, percentage normalization, acronym preservation\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eMultiple Model Variants\u003c/strong\u003e - Trained \u003cstrong\u003e13 configurations\u003c/strong\u003e with different hyperparameters (vector sizes: 100-300, windows: 5-15, min counts: 3-10)\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eModel Selection\u003c/strong\u003e - Selected best model by \u003cstrong\u003eanalogy score\u003c/strong\u003e (avg top-3 similarity across 3 required analogies)\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eEvaluation\u003c/strong\u003e - Nearest neighbors for anchor terms + 3 policy analogies + synonym/antonym tasks\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eFailure Analysis\u003c/strong\u003e - Documented temporal mixing, doc-type ambiguity, and sparse acronym issues\u003c/li\u003e\n\u003c/ol\u003e\n\u003ch3\u003eNext Steps:\u003c/h3\u003e\n\u003cul\u003e\n\u003cli\u003eUse embeddings for downstream tasks (classification, clustering)\u003c/li\u003e\n\u003cli\u003eExplore time-windowed models for regime analysis\u003c/li\u003e\n\u003cli\u003eCompare with pre-trained financial embeddings (FinBERT, etc.)\u003c/li\u003e\n\u003c/ul\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766100755711_1216466142",
+      "id": "paragraph_1766100755711_1216466142",
+      "dateCreated": "2025-12-18 18:32:35.711",
+      "dateStarted": "2025-12-19 14:41:34.507",
+      "dateFinished": "2025-12-19 14:41:34.514",
+      "status": "FINISHED"
+    },
+    {
+      "text": "%md\n",
+      "user": "anonymous",
+      "dateUpdated": "2025-12-19 13:56:26.570",
+      "progress": 0,
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 9.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {}
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1766109967177_212293323",
+      "id": "paragraph_1766109967177_212293323",
+      "dateCreated": "2025-12-18 21:06:07.177",
+      "dateStarted": "2025-12-19 13:56:26.572",
+      "dateFinished": "2025-12-19 13:56:26.575",
+      "status": "FINISHED"
+    }
+  ],
+  "name": "Final Project",
+  "id": "2MDNG99XU",
+  "defaultInterpreterGroup": "spark",
+  "version": "0.12.0",
+  "noteParams": {},
+  "noteForms": {},
+  "angularObjects": {},
+  "config": {
+    "isZeppelinNotebookCronEnable": false,
+    "looknfeel": "default",
+    "personalizedMode": "false"
+  },
+  "info": {
+    "isRunning": false
+  }
+}
