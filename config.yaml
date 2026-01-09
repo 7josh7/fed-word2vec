@@ -8,7 +8,7 @@ paths:
   model_dir: model
 
 download:
-  user_agent: "FedResearchDownloader/1.0 (contact: research@example.com)"
+  user_agent: "FedResearchDownloader/1.0 (contact: jc13618@nyu.edu)"
   delay: 0.4
   timeout: 30
   start_year: 1994
